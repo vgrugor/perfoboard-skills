@@ -82,7 +82,6 @@ function holeY(startY, y) {
 function drawComponents(startX, startY) {
   for (const c of data.components) {
     if (showBody.checked) {
-      // 1) Явное тело из JSON: c.body: {x1,y1,x2,y2}
       if (c.body && Number.isFinite(c.body.x1)) {
         const bx1 = holeX(startX, c.body.x1) + cell / 2;
         const by1 = holeY(startY, c.body.y1) + cell / 2;
@@ -92,13 +91,12 @@ function drawComponents(startX, startY) {
         const ry = Math.min(by1, by2) - cell / 2;
         const rw = Math.abs(bx2 - bx1) + cell;
         const rh = Math.abs(by2 - by1) + cell;
-        ctx.fillStyle = "rgba(76,175,80,0.2)"; // зелёный полупрозрачный
+        ctx.fillStyle = "rgba(76,175,80,0.2)";
         ctx.fillRect(rx, ry, rw, rh);
         ctx.strokeStyle = "rgba(76,175,80,0.8)";
         ctx.lineWidth = 1;
         ctx.strokeRect(rx, ry, rw, rh);
       } else {
-        // 2) Если body нет, пробуем объединённый bbox keepout
         let hasBox = false;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         if (Array.isArray(c.keepout) && c.keepout.length) {
@@ -110,7 +108,6 @@ function drawComponents(startX, startY) {
             hasBox = true;
           }
         }
-        // 3) Если keepout нет, fallback по пинам
         if (!hasBox && Array.isArray(c.pins) && c.pins.length) {
           for (const p of c.pins) {
             minX = Math.min(minX, p.x);
@@ -152,6 +149,16 @@ function drawComponents(startX, startY) {
       }
     }
     if (Array.isArray(c.pins)) {
+      const xs = c.pins.map(p => p.x);
+      const ys = c.pins.map(p => p.y);
+      const allSameX = xs.every(x => x === xs[0]);
+      const allSameY = ys.every(y => y === ys[0]);
+      const sortedX = [...xs].sort((a,b)=>a-b);
+      const sortedY = [...ys].sort((a,b)=>a-b);
+      const consecX = sortedX.every((v,i,arr)=> i===0 || v-arr[i-1]===1);
+      const consecY = sortedY.every((v,i,arr)=> i===0 || v-arr[i-1]===1);
+      const linearRow = allSameY && consecX;
+      const linearCol = allSameX && consecY;
       for (const p of c.pins) {
         const x = holeX(startX, p.x) + cell / 2;
         const y = holeY(startY, p.y) + cell / 2;
@@ -164,9 +171,44 @@ function drawComponents(startX, startY) {
           ctx.font = Math.max(10, Math.floor(cell * 0.5)) + "px system-ui";
           ctx.textAlign = "left";
           ctx.textBaseline = "top";
-          const label = String(c.ref || "") + ":" + String(p.name || "");
+          const label = (linearRow || linearCol) ? String(p.name || "") : (String(c.ref || "") + ":" + String(p.name || ""));
           ctx.fillText(label, x + 4, y + 4);
         }
+      }
+      if (showLabels.checked && (linearRow || linearCol)) {
+        let minX, minY, maxX, maxY;
+        if (c.body && Number.isFinite(c.body.x1)) {
+          minX = Math.min(c.body.x1, c.body.x2);
+          minY = Math.min(c.body.y1, c.body.y2);
+          maxX = Math.max(c.body.x1, c.body.x2);
+          maxY = Math.max(c.body.y1, c.body.y2);
+        } else if (Array.isArray(c.keepout) && c.keepout.length) {
+          minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+          for (const k of c.keepout) {
+            minX = Math.min(minX, k.x1, k.x2);
+            minY = Math.min(minY, k.y1, k.y2);
+            maxX = Math.max(maxX, k.x1, k.x2);
+            maxY = Math.max(maxY, k.y1, k.y2);
+          }
+        } else {
+          minX = Math.min(...xs); maxX = Math.max(...xs);
+          minY = Math.min(...ys); maxY = Math.max(...ys);
+        }
+        const bx1 = holeX(startX, minX) + cell / 2;
+        const by1 = holeY(startY, minY) + cell / 2;
+        const bx2 = holeX(startX, maxX) + cell / 2;
+        const by2 = holeY(startY, maxY) + cell / 2;
+        const rx = Math.min(bx1, bx2) - cell / 2;
+        const ry = Math.min(by1, by2) - cell / 2;
+        const rw = Math.abs(bx2 - bx1) + cell;
+        const rh = Math.abs(by2 - by1) + cell;
+        const cx = rx + rw / 2;
+        const cy = ry + rh / 2;
+        ctx.fillStyle = "#000";
+        ctx.font = Math.max(10, Math.floor(cell * 0.6)) + "px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(c.ref || ""), cx, cy);
       }
     }
   }

@@ -4,6 +4,7 @@ const fileInput = document.getElementById("file");
 const fitBtn = document.getElementById("fit");
 const showKeepout = document.getElementById("showKeepout");
 const showLabels = document.getElementById("showLabels");
+const showBody = document.getElementById("showBody");
 
 let data = null;
 let cell = 20;
@@ -31,6 +32,7 @@ fitBtn.addEventListener("click", () => {
 });
 showKeepout.addEventListener("change", draw);
 showLabels.addEventListener("change", draw);
+showBody.addEventListener("change", draw);
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -79,6 +81,62 @@ function holeY(startY, y) {
 
 function drawComponents(startX, startY) {
   for (const c of data.components) {
+    if (showBody.checked) {
+      // 1) Явное тело из JSON: c.body: {x1,y1,x2,y2}
+      if (c.body && Number.isFinite(c.body.x1)) {
+        const bx1 = holeX(startX, c.body.x1) + cell / 2;
+        const by1 = holeY(startY, c.body.y1) + cell / 2;
+        const bx2 = holeX(startX, c.body.x2) + cell / 2;
+        const by2 = holeY(startY, c.body.y2) + cell / 2;
+        const rx = Math.min(bx1, bx2) - cell / 2;
+        const ry = Math.min(by1, by2) - cell / 2;
+        const rw = Math.abs(bx2 - bx1) + cell;
+        const rh = Math.abs(by2 - by1) + cell;
+        ctx.fillStyle = "rgba(76,175,80,0.2)"; // зелёный полупрозрачный
+        ctx.fillRect(rx, ry, rw, rh);
+        ctx.strokeStyle = "rgba(76,175,80,0.8)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rx, ry, rw, rh);
+      } else {
+        // 2) Если body нет, пробуем объединённый bbox keepout
+        let hasBox = false;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        if (Array.isArray(c.keepout) && c.keepout.length) {
+          for (const k of c.keepout) {
+            minX = Math.min(minX, k.x1, k.x2);
+            minY = Math.min(minY, k.y1, k.y2);
+            maxX = Math.max(maxX, k.x1, k.x2);
+            maxY = Math.max(maxY, k.y1, k.y2);
+            hasBox = true;
+          }
+        }
+        // 3) Если keepout нет, fallback по пинам
+        if (!hasBox && Array.isArray(c.pins) && c.pins.length) {
+          for (const p of c.pins) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          }
+          hasBox = true;
+        }
+        if (hasBox && Number.isFinite(minX) && Number.isFinite(minY)) {
+          const bx1 = holeX(startX, minX) + cell / 2;
+          const by1 = holeY(startY, minY) + cell / 2;
+          const bx2 = holeX(startX, maxX) + cell / 2;
+          const by2 = holeY(startY, maxY) + cell / 2;
+          const rx = Math.min(bx1, bx2) - cell / 2;
+          const ry = Math.min(by1, by2) - cell / 2;
+          const rw = Math.abs(bx2 - bx1) + cell;
+          const rh = Math.abs(by2 - by1) + cell;
+          ctx.fillStyle = "rgba(76,175,80,0.12)";
+          ctx.fillRect(rx, ry, rw, rh);
+          ctx.strokeStyle = "rgba(76,175,80,0.6)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rx, ry, rw, rh);
+        }
+      }
+    }
     if (c.keepout && showKeepout.checked) {
       ctx.fillStyle = "rgba(255,165,0,0.2)";
       for (const k of c.keepout) {

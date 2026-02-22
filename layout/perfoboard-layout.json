@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "board": { "width": 12, "height": 12 },
-  "bbox": { "x1": 3, "y1": 5, "x2": 9, "y2": 6 },
+  "bbox": { "x1": 4, "y1": 5, "x2": 9, "y2": 6 },
   "components": [
     {
       "ref": "Q1",
@@ -18,8 +18,8 @@
       "package": "AXIAL-2PIN",
       "orientation": 0,
       "pins": [
-        { "name": "1", "x": 4, "y": 6 },
-        { "name": "2", "x": 3, "y": 6 }
+        { "name": "1", "x": 5, "y": 5 },
+        { "name": "2", "x": 4, "y": 5 }
       ]
     },
     {
@@ -59,7 +59,7 @@
     {
       "name": "SIG1",
       "segments": [
-        { "x1": 5, "y1": 6, "x2": 4, "y2": 6 }
+        { "x1": 5, "y1": 6, "x2": 5, "y2": 5 }
       ],
       "jumpers": []
     },
@@ -75,7 +75,7 @@
     "allowTopJumpers": false
   },
   "cost": {
-    "bboxArea": 14,
+    "bboxArea": 12,
     "wireLength": 4,
     "crossings": 0
   },

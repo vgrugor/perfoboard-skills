@@ -1,0 +1,5 @@
+html,body{margin:0;padding:0;height:100%}
+.toolbar{display:flex;gap:8px;align-items:center;padding:8px;background:#f3f3f3;border-bottom:1px solid #ddd}
+#canvas{display:block;width:100%;height:calc(100% - 50px)}
+label{font-family:system-ui,Segoe UI,Roboto,Arial;font-size:14px}
+button,input{font-family:system-ui,Segoe UI,Roboto,Arial;font-size:14px}

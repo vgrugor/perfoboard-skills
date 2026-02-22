@@ -10,6 +10,7 @@ let data = null;
 let cell = 20;
 let margin = 20;
 let scaleFit = true;
+let colorCache = new Map();
 
 fileInput.addEventListener("change", (e) => {
   const f = e.target.files[0];
@@ -18,6 +19,7 @@ fileInput.addEventListener("change", (e) => {
   r.onload = () => {
     try {
       data = JSON.parse(r.result);
+      colorCache = new Map();
       draw();
     } catch (err) {
       alert("Ошибка JSON: " + err.message);
@@ -83,6 +85,7 @@ function drawComponents(startX, startY) {
   for (const c of data.components) {
     if (showBody.checked) {
       if (c.body && Number.isFinite(c.body.x1)) {
+        const colors = bodyColors(c);
         const bx1 = holeX(startX, c.body.x1) + cell / 2;
         const by1 = holeY(startY, c.body.y1) + cell / 2;
         const bx2 = holeX(startX, c.body.x2) + cell / 2;
@@ -91,9 +94,9 @@ function drawComponents(startX, startY) {
         const ry = Math.min(by1, by2) - cell / 2;
         const rw = Math.abs(bx2 - bx1) + cell;
         const rh = Math.abs(by2 - by1) + cell;
-        ctx.fillStyle = "rgba(76,175,80,0.2)";
+        ctx.fillStyle = colors.fill;
         ctx.fillRect(rx, ry, rw, rh);
-        ctx.strokeStyle = "rgba(76,175,80,0.8)";
+        ctx.strokeStyle = colors.stroke;
         ctx.lineWidth = 1;
         ctx.strokeRect(rx, ry, rw, rh);
       } else {
@@ -118,6 +121,7 @@ function drawComponents(startX, startY) {
           hasBox = true;
         }
         if (hasBox && Number.isFinite(minX) && Number.isFinite(minY)) {
+          const colors = bodyColors(c);
           const bx1 = holeX(startX, minX) + cell / 2;
           const by1 = holeY(startY, minY) + cell / 2;
           const bx2 = holeX(startX, maxX) + cell / 2;
@@ -126,9 +130,9 @@ function drawComponents(startX, startY) {
           const ry = Math.min(by1, by2) - cell / 2;
           const rw = Math.abs(bx2 - bx1) + cell;
           const rh = Math.abs(by2 - by1) + cell;
-          ctx.fillStyle = "rgba(76,175,80,0.12)";
+          ctx.fillStyle = colors.fillLight;
           ctx.fillRect(rx, ry, rw, rh);
-          ctx.strokeStyle = "rgba(76,175,80,0.6)";
+          ctx.strokeStyle = colors.stroke;
           ctx.lineWidth = 1;
           ctx.strokeRect(rx, ry, rw, rh);
         }
@@ -212,6 +216,19 @@ function drawComponents(startX, startY) {
       }
     }
   }
+}
+
+function bodyColors(c){
+  const key = String(c.ref||Math.random());
+  if (colorCache.has(key)) return colorCache.get(key);
+  const hue = Math.floor(Math.random()*360);
+  const colors = {
+    fill: `hsla(${hue},65%,55%,0.25)`,
+    fillLight: `hsla(${hue},65%,55%,0.12)`,
+    stroke: `hsla(${hue},65%,40%,0.85)`
+  };
+  colorCache.set(key, colors);
+  return colors;
 }
 
 function drawNets(startX, startY) {

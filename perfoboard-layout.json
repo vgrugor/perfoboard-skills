@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "board": { "width": 30, "height": 30 },
+  "bbox": { "x1": 12, "y1": 13, "x2": 18, "y2": 15 },
+  "components": [
+    {
+      "ref": "Q1",
+      "package": "TO-92",
+      "orientation": 0,
+      "pins": [
+        { "name": "1", "x": 14, "y": 15 },
+        { "name": "2", "x": 15, "y": 15 },
+        { "name": "3", "x": 16, "y": 15 }
+      ]
+    },
+    {
+      "ref": "R1",
+      "package": "AXIAL-2PIN",
+      "orientation": 0,
+      "pins": [
+        { "name": "1", "x": 13, "y": 15 },
+        { "name": "2", "x": 12, "y": 15 }
+      ]
+    },
+    {
+      "ref": "LED1",
+      "package": "LED-THT",
+      "orientation": 0,
+      "pins": [
+        { "name": "1", "x": 17, "y": 15 },
+        { "name": "2", "x": 18, "y": 15 }
+      ]
+    },
+    {
+      "ref": "J1",
+      "package": "HEADER-1x2",
+      "orientation": 0,
+      "pins": [
+        { "name": "+5V", "x": 15, "y": 13 },
+        { "name": "GND", "x": 16, "y": 13 }
+      ]
+    }
+  ],
+  "nets": [
+    {
+      "name": "VCC",
+      "segments": [
+        { "x1": 15, "y1": 15, "x2": 15, "y2": 13 }
+      ],
+      "jumpers": []
+    },
+    {
+      "name": "GND",
+      "segments": [
+        { "x1": 18, "y1": 15, "x2": 18, "y2": 13 },
+        { "x1": 18, "y1": 13, "x2": 16, "y2": 13 }
+      ],
+      "jumpers": []
+    },
+    {
+      "name": "SIG1",
+      "segments": [
+        { "x1": 14, "y1": 15, "x2": 13, "y2": 15 }
+      ],
+      "jumpers": []
+    },
+    {
+      "name": "LED_DRIVE",
+      "segments": [
+        { "x1": 16, "y1": 15, "x2": 17, "y2": 15 }
+      ],
+      "jumpers": []
+    }
+  ],
+  "options": {
+    "allowTopJumpers": false
+  },
+  "cost": {
+    "bboxArea": 21,
+    "wireLength": 8,
+    "crossings": 0
+  },
+  "metadata": {
+    "createdAt": "2026-02-22T00:00:00Z"
+  }
+}

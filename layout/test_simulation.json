@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "description": "Test run simulation by Gemini Code Assist based on SKILL.md rules",
+  "board": { "width": 15, "height": 10 },
+  "bbox": { "x1": 2, "y1": 1, "x2": 9, "y2": 7 },
+  "components": [
+    {
+      "ref": "J1",
+      "package": "HEADER-1x2",
+      "orientation": 0,
+      "pins": [
+        { "name": "1", "x": 2, "y": 1, "net": "VCC" },
+        { "name": "2", "x": 3, "y": 1, "net": "GND" }
+      ],
+      "keepout": [ { "x1": 2, "y1": 0, "x2": 3, "y2": 0 } ]
+    },
+    {
+      "ref": "Q1",
+      "package": "TO-92",
+      "orientation": 0,
+      "pins": [
+        { "name": "1", "x": 3, "y": 4, "net": "GND" },
+        { "name": "2", "x": 4, "y": 4, "net": "N_BASE" },
+        { "name": "3", "x": 5, "y": 4, "net": "N_COLL" }
+      ],
+      "keepout": [ { "x1": 3, "y1": 5, "x2": 5, "y2": 6 } ]
+    },
+    {
+      "ref": "R1",
+      "package": "AXIAL-0.25W",
+      "orientation": 90,
+      "pins": [
+        { "name": "1", "x": 1, "y": 3, "net": "VCC" },
+        { "name": "2", "x": 1, "y": 7, "net": "N_BASE" }
+      ],
+      "notes": "Span=4 holes (vertical)"
+    },
+    {
+      "ref": "BZ1",
+      "package": "BUZZER-THT",
+      "orientation": 90,
+      "pins": [
+        { "name": "+", "x": 8, "y": 3, "net": "VCC" },
+        { "name": "-", "x": 8, "y": 5, "net": "N_COLL" }
+      ],
+      "keepout": [
+        { "note": "Manhattan radius 2 from center (8,4)", "x1": 6, "y1": 2, "x2": 10, "y2": 6 }
+      ]
+    }
+  ],
+  "nets": [
+    { "name": "GND", "segments": [ { "x1": 3, "y1": 1, "x2": 3, "y2": 4 } ], "jumpers": [] },
+    { "name": "VCC", "segments": [
+        { "x1": 2, "y1": 1, "x2": 1, "y2": 1 }, { "x1": 1, "y1": 1, "x2": 1, "y2": 3 },
+        { "x1": 2, "y1": 1, "x2": 8, "y2": 1 }, { "x1": 8, "y1": 1, "x2": 8, "y2": 3 }
+      ], "jumpers": []
+    },
+    { "name": "N_BASE", "segments": [ { "x1": 1, "y1": 7, "x2": 4, "y2": 7 }, { "x1": 4, "y1": 7, "x2": 4, "y2": 4 } ], "jumpers": [] },
+    { "name": "N_COLL", "segments": [ { "x1": 5, "y1": 4, "x2": 8, "y2": 4 }, { "x1": 8, "y1": 4, "x2": 8, "y2": 5 } ], "jumpers": [] }
+  ],
+  "cost": { "bboxArea": 56, "wireLength": 22, "crossings": 0 }
+}

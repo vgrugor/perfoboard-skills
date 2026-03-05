@@ -232,21 +232,44 @@ function bodyColors(c){
 }
 
 function drawNets(startX, startY) {
+  // Трассы на нижней стороне (пайка)
   ctx.strokeStyle = "#e91e63";
   ctx.lineWidth = Math.max(1, Math.floor(cell * 0.15));
+  ctx.setLineDash([]); 
   for (const n of data.nets) {
-    if (!Array.isArray(n.segments)) continue;
-    for (const s of n.segments) {
-      const x1 = holeX(startX, s.x1) + cell / 2;
-      const y1 = holeY(startY, s.y1) + cell / 2;
-      const x2 = holeX(startX, s.x2) + cell / 2;
-      const y2 = holeY(startY, s.y2) + cell / 2;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
+    if (Array.isArray(n.segments)) {
+      for (const s of n.segments) {
+        const x1 = holeX(startX, s.x1) + cell / 2;
+        const y1 = holeY(startY, s.y1) + cell / 2;
+        const x2 = holeX(startX, s.x2) + cell / 2;
+        const y2 = holeY(startY, s.y2) + cell / 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
     }
   }
+
+  // Перемычки на верхней стороне (изолированный провод)
+  ctx.strokeStyle = "#4caf50";
+  ctx.lineWidth = Math.max(2, Math.floor(cell * 0.2));
+  ctx.setLineDash([5, 5]); 
+  for (const n of data.nets) {
+    if (Array.isArray(n.jumpers)) {
+      for (const j of n.jumpers) {
+        const x1 = holeX(startX, j.x1) + cell / 2;
+        const y1 = holeY(startY, j.y1) + cell / 2;
+        const x2 = holeX(startX, j.x2) + cell / 2;
+        const y2 = holeY(startY, j.y2) + cell / 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.setLineDash([]); 
 }
 
 window.addEventListener("resize", () => {

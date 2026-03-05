@@ -96,17 +96,27 @@ if (data.components) {
   });
 }
 
-// Nets
+// Nets & Jumpers
 const colors = ["#e91e63", "#9c27b0", "#2196f3", "#00bcd4", "#4caf50", "#ff9800", "#795548"];
 if (data.nets) {
   data.nets.forEach((n, i) => {
     const color = colors[i % colors.length];
+    
+    // Bottom traces
     if (n.segments) {
       let d = "";
       n.segments.forEach(s => {
         d += `M ${g2p(s.x1)} ${g2p(s.y1)} L ${g2p(s.x2)} ${g2p(s.y2)} `;
       });
       svg += `<path d="${d}" class="trace" stroke="${color}" />`;
+    }
+
+    // Top jumpers
+    if (n.jumpers) {
+      n.jumpers.forEach(j => {
+        svg += `<line x1="${g2p(j.x1)}" y1="${g2p(j.y1)}" x2="${g2p(j.x2)}" y2="${g2p(j.y2)}" 
+                stroke="#4caf50" stroke-width="3" stroke-dasharray="5,5" opacity="1" />`;
+      });
     }
   });
 }

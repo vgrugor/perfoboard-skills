@@ -30,62 +30,67 @@ data.nets.forEach(n => {
   }
 });
 
-// Short Circuit & Hole Conflict Detection
-const segmentsByEdge = new Map();
-const pinsByHole = new Map();
+// Short Circuit, Hole & Intersection Detection
+const netsByHole = new Map(); // "x:y" -> Set of netNames
 let shortCircuits = 0;
 
-// Сначала индексируем все пины
+// Предварительно индексируем пины и их принадлежность к нетам
+const pinNets = new Map();
 data.components.forEach(c => {
   if (c.pins) {
     c.pins.forEach(p => {
-      pinsByHole.set(`${p.x}:${p.y}`, { net: null, ref: c.ref, name: p.name });
+      // Ищем, к какому нету привязан этот пин в данных JSON
+      const net = data.nets.find(n => {
+          if (n.segments) {
+              return n.segments.some(s => (s.x1 === p.x && s.y1 === p.y) || (s.x2 === p.x && s.y2 === p.y));
+          }
+          return false;
+      });
+      if (net) pinNets.set(`${p.x}:${p.y}`, net.name);
     });
   }
 });
 
-// Привязываем пины к нетам
 data.nets.forEach(n => {
-  if (n.segments) {
-    n.segments.forEach(s => {
-      // Проверяем все точки (отверстия) на сегменте
-      const dx = Math.sign(s.x2 - s.x1);
-      const dy = Math.sign(s.y2 - s.y1);
-      let currX = s.x1;
-      let currY = s.y1;
+  if (!n.segments) return;
+  n.segments.forEach(s => {
+    const dx = Math.sign(s.x2 - s.x1);
+    const dy = Math.sign(s.y2 - s.y1);
+    let currX = s.x1;
+    let currY = s.y1;
+    
+    while (true) {
+      const holeKey = `${currX}:${currY}`;
       
-      while (true) {
-        const holeKey = `${currX}:${currY}`;
-        if (pinsByHole.has(holeKey)) {
-            const pin = pinsByHole.get(holeKey);
-            if (pin.net && pin.net !== n.name) {
-                shortCircuits++; // Провод одной цепи прошел через пин другой
-            }
-            pin.net = n.name;
-        }
-        if (currX === s.x2 && currY === s.y2) break;
-        currX += dx;
-        currY += dy;
+      // Проверка конфликта с ЧУЖИМ пином
+      if (pinNets.has(holeKey) && pinNets.get(holeKey) !== n.name) {
+          shortCircuits++;
       }
 
-      // Проверка наложения ребер (как раньше)
-      const x1 = Math.min(s.x1, s.x2);
-      const x2 = Math.max(s.x1, s.x2);
-      const y1 = Math.min(s.y1, s.y2);
-      const y2 = Math.max(s.y1, s.y2);
-      if (x1 === x2) {
-        for (let y = y1; y < y2; y++) {
-          const key = `v:${x1}:${y}:${y+1}`;
-          if (segmentsByEdge.has(key) && segmentsByEdge.get(key) !== n.name) shortCircuits++;
-          segmentsByEdge.set(key, n.name);
-        }
-      } else if (y1 === y2) {
-        for (let x = x1; x < x2; x++) {
-          const key = `h:${y1}:${x}:${x+1}`;
-          if (segmentsByEdge.has(key) && segmentsByEdge.get(key) !== n.name) shortCircuits++;
-          segmentsByEdge.set(key, n.name);
-        }
+      // Проверка пересечения с ЧУЖОЙ трассой
+      if (!netsByHole.has(holeKey)) netsByHole.set(holeKey, new Set());
+      const netsAtHole = netsByHole.get(holeKey);
+      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) {
+          shortCircuits++;
       }
+      netsAtHole.add(n.name);
+
+      if (currX === s.x2 && currY === s.y2) break;
+      currX += dx;
+      currY += dy;
+    }
+  });
+});
+
+// 4. Calculate Jumpers Cost (Count + Length)
+let jumperPenalty = 0;
+let jumpersCount = 0;
+data.nets.forEach(n => {
+  if (n.jumpers) {
+    jumpersCount += n.jumpers.length;
+    n.jumpers.forEach(j => {
+        const len = Math.abs(j.x2 - j.x1) + Math.abs(j.y2 - j.y1);
+        jumperPenalty += 50 + (len * 2);
     });
   }
 });
@@ -93,17 +98,18 @@ data.nets.forEach(n => {
 const weights = {
   area: 1.0,
   wire: 0.5,
-  jumper: 50.0,
-  short: 1000.0 // Огромный штраф за КЗ
+  jumper: 1.0, // Теперь это множитель для jumperPenalty
+  short: 1000.0 // КЗ остается фатальным
 };
 
-const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (shortCircuits * weights.short);
+const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short);
 
 console.log(`
 --- Benchmark Report ---
 File: ${file}
 BBox: ${w}x${h} (Area: ${bboxArea})
 Wire Length: ${wireLength}
+Jumpers: ${jumpersCount} (Penalty: ${jumperPenalty})
 Short Circuits: ${shortCircuits}
 -----------------------
 TOTAL SCORE: ${score.toFixed(1)}

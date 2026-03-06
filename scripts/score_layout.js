@@ -30,56 +30,58 @@ data.nets.forEach(n => {
   }
 });
 
-// Short Circuit, Hole & Intersection Detection
-const netsByHole = new Map(); // "x:y" -> Set of netNames
+// Short Circuit, Hole, Intersection & Bypass Detection
+const netsByHole = new Map(); 
 let shortCircuits = 0;
 
-// Предварительно индексируем пины и их принадлежность к нетам
-const pinNets = new Map();
-data.components.forEach(c => {
-  if (c.pins) {
-    c.pins.forEach(p => {
-      // Ищем, к какому нету привязан этот пин в данных JSON
-      const net = data.nets.find(n => {
-          if (n.segments) {
-              return n.segments.some(s => (s.x1 === p.x && s.y1 === p.y) || (s.x2 === p.x && s.y2 === p.y));
-          }
-          return false;
-      });
-      if (net) pinNets.set(`${p.x}:${p.y}`, net.name);
-    });
-  }
-});
+// Индексация: какой пин какой детали к какой цепи подключен
+const componentPinNets = new Map(); // "ref" -> { pinName -> netName }
 
 data.nets.forEach(n => {
   if (!n.segments) return;
   n.segments.forEach(s => {
     const dx = Math.sign(s.x2 - s.x1);
     const dy = Math.sign(s.y2 - s.y1);
-    let currX = s.x1;
-    let currY = s.y1;
-    
+    let currX = s.x1; let currY = s.y1;
     while (true) {
       const holeKey = `${currX}:${currY}`;
       
-      // Проверка конфликта с ЧУЖИМ пином
-      if (pinNets.has(holeKey) && pinNets.get(holeKey) !== n.name) {
-          shortCircuits++;
-      }
+      // Ищем, не пин ли это
+      data.components.forEach(c => {
+          if (c.pins) {
+              c.pins.forEach(p => {
+                  if (p.x === currX && p.y === currY) {
+                      if (!componentPinNets.has(c.ref)) componentPinNets.set(c.ref, {});
+                      const pins = componentPinNets.get(c.ref);
+                      pins[p.name] = n.name;
+                  }
+              });
+          }
+      });
 
-      // Проверка пересечения с ЧУЖОЙ трассой
       if (!netsByHole.has(holeKey)) netsByHole.set(holeKey, new Set());
       const netsAtHole = netsByHole.get(holeKey);
-      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) {
-          shortCircuits++;
-      }
+      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) shortCircuits++;
       netsAtHole.add(n.name);
 
       if (currX === s.x2 && currY === s.y2) break;
-      currX += dx;
-      currY += dy;
+      currX += dx; currY += dy;
     }
   });
+});
+
+// Проверка на Bypass (замыкание компонента самим собой)
+componentPinNets.forEach((pins, ref) => {
+    const netNames = Object.values(pins);
+    const uniqueNets = new Set(netNames);
+    if (netNames.length > 1 && uniqueNets.size < netNames.length) {
+        // Если у компонента >1 пина и они попали в один и тот же нет (кроме GND/VCC если это явно нужно)
+        // Для R, C это всегда ошибка
+        if (ref.startsWith('R') || ref.startsWith('C') || ref.startsWith('LED')) {
+            console.log(`BYPASS ERROR: Component ${ref} is shorted by net '${netNames[0]}'`);
+            shortCircuits += 10; // Массивный штраф
+        }
+    }
 });
 
 // 4. Calculate Jumpers Cost (Count + Length)

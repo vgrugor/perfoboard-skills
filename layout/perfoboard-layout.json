@@ -1,0 +1,134 @@
+{
+  "board": {
+    "width": 12,
+    "height": 12
+  },
+  "components": [
+    { "ref": "Q1", "package": "TO-92", "pins": [
+      { "name": "E", "x": 3, "y": 1 },
+      { "name": "B", "x": 3, "y": 2 },
+      { "name": "C", "x": 3, "y": 3 }
+    ]},
+    { "ref": "Q3", "package": "TO-92", "pins": [
+      { "name": "E", "x": 3, "y": 10 },
+      { "name": "B", "x": 3, "y": 9 },
+      { "name": "C", "x": 3, "y": 8 }
+    ]},
+    { "ref": "Q2", "package": "TO-92", "pins": [
+      { "name": "E", "x": 8, "y": 1 },
+      { "name": "B", "x": 8, "y": 2 },
+      { "name": "C", "x": 8, "y": 3 }
+    ]},
+    { "ref": "Q4", "package": "TO-92", "pins": [
+      { "name": "E", "x": 8, "y": 10 },
+      { "name": "B", "x": 8, "y": 9 },
+      { "name": "C", "x": 8, "y": 8 }
+    ]},
+    { "ref": "D3", "package": "AXIAL-2PIN", "pins": [
+      { "name": "K", "x": 1, "y": 1 },
+      { "name": "A", "x": 1, "y": 3 }
+    ]},
+    { "ref": "D1", "package": "AXIAL-2PIN", "pins": [
+      { "name": "A", "x": 1, "y": 10 },
+      { "name": "K", "x": 1, "y": 8 }
+    ]},
+    { "ref": "D4", "package": "AXIAL-2PIN", "pins": [
+      { "name": "K", "x": 10, "y": 1 },
+      { "name": "A", "x": 10, "y": 3 }
+    ]},
+    { "ref": "D2", "package": "AXIAL-2PIN", "pins": [
+      { "name": "A", "x": 10, "y": 10 },
+      { "name": "K", "x": 10, "y": 8 }
+    ]},
+    { "ref": "R1", "package": "AXIAL-2PIN", "pins": [
+      { "name": "1", "x": 0, "y": 2 },
+      { "name": "2", "x": 2, "y": 2 }
+    ]},
+    { "ref": "R3", "package": "AXIAL-2PIN", "pins": [
+      { "name": "1", "x": 0, "y": 9 },
+      { "name": "2", "x": 2, "y": 9 }
+    ]},
+    { "ref": "R2", "package": "AXIAL-2PIN", "pins": [
+      { "name": "1", "x": 11, "y": 2 },
+      { "name": "2", "x": 9, "y": 2 }
+    ]},
+    { "ref": "R4", "package": "AXIAL-2PIN", "pins": [
+      { "name": "1", "x": 11, "y": 9 },
+      { "name": "2", "x": 9, "y": 9 }
+    ]}
+  ],
+  "nets": [
+    {
+      "name": "VCC_BUS",
+      "segments": [
+        { "x1": 1, "y1": 1, "x2": 1, "y2": 0 },
+        { "x1": 3, "y1": 1, "x2": 3, "y2": 0 },
+        { "x1": 8, "y1": 1, "x2": 8, "y2": 0 },
+        { "x1": 10, "y1": 1, "x2": 10, "y2": 0 },
+        { "x1": 1, "y1": 0, "x2": 10, "y2": 0 }
+      ]
+    },
+    {
+      "name": "GND_BUS",
+      "segments": [
+        { "x1": 1, "y1": 10, "x2": 1, "y2": 11 },
+        { "x1": 3, "y1": 10, "x2": 3, "y2": 11 },
+        { "x1": 8, "y1": 10, "x2": 8, "y2": 11 },
+        { "x1": 10, "y1": 10, "x2": 10, "y2": 11 },
+        { "x1": 1, "y1": 11, "x2": 10, "y2": 11 }
+      ]
+    },
+    {
+      "name": "OUT_LEFT",
+      "segments": [
+        { "x1": 3, "y1": 3, "x2": 3, "y2": 8 },
+        { "x1": 3, "y1": 3, "x2": 1, "y2": 3 },
+        { "x1": 3, "y1": 8, "x2": 1, "y2": 8 }
+      ]
+    },
+    {
+      "name": "OUT_RIGHT",
+      "segments": [
+        { "x1": 8, "y1": 3, "x2": 8, "y2": 8 },
+        { "x1": 8, "y1": 3, "x2": 10, "y2": 3 },
+        { "x1": 8, "y1": 8, "x2": 10, "y2": 8 }
+      ]
+    },
+    {
+      "name": "IN_A",
+      "segments": [
+        { "x1": 0, "y1": 2, "x2": 0, "y2": 9 }
+      ]
+    },
+    {
+      "name": "IN_B",
+      "segments": [
+        { "x1": 11, "y1": 2, "x2": 11, "y2": 9 }
+      ]
+    },
+    {
+      "name": "BASE_Q1",
+      "segments": [
+        { "x1": 2, "y1": 2, "x2": 3, "y2": 2 }
+      ]
+    },
+    {
+      "name": "BASE_Q3",
+      "segments": [
+        { "x1": 2, "y1": 9, "x2": 3, "y2": 9 }
+      ]
+    },
+    {
+      "name": "BASE_Q2",
+      "segments": [
+        { "x1": 9, "y1": 2, "x2": 8, "y2": 2 }
+      ]
+    },
+    {
+      "name": "BASE_Q4",
+      "segments": [
+        { "x1": 9, "y1": 9, "x2": 8, "y2": 9 }
+      ]
+    }
+  ]
+}

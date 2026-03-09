@@ -93,14 +93,20 @@ while (queue.length > 0) {
             const edgeKey = `${curr.x}:${curr.y}-${nx}:${ny}`;
 
             // 1. ПУТЬ ПО НИЗУ (Layer 0)
+            // Можно двигаться по низу, только если и текущая, и следующая точки свободны (для перехода 1->0)
+            // Но фактически curr.l === 0 уже гарантирует, что curr был свободен (или был стартом).
             if (!blockedHoles.has(holeKey) && !blockedEdges.has(edgeKey)) {
-                queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + 1, path: newPath });
+                // Если мы переходим с верха на низ, текущая точка ДОЛЖНА быть свободна
+                if (curr.l === 0 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
+                    queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + 1, path: newPath });
+                }
             }
 
             // 2. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper)
-            // Прыгаем только если точка приземления не занята чужим пином
-            if (!blockedHoles.has(holeKey)) {
-                queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + 50, path: newPath });
+            // Перейти на верх можно только из свободной точки
+            if (curr.l === 1 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
+                const jumperCost = (curr.l === 1) ? 2 : 50; 
+                queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + jumperCost, path: newPath });
             }
         }
     }

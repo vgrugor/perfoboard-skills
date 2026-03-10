@@ -83,7 +83,36 @@ function holeY(startY, y) {
 
 function drawComponents(startX, startY) {
   for (const c of data.components) {
-    if (showBody.checked) {
+    // Специальная отрисовка для Buzzer (круглый корпус)
+    if (showBody.checked && (c.package === "BUZZER-THT" || String(c.ref).toLowerCase().startsWith("bz"))) {
+      const colors = bodyColors(c);
+      let cx, cy;
+      if (Array.isArray(c.pins) && c.pins.length >= 2) {
+        cx = (holeX(startX, c.pins[0].x) + holeX(startX, c.pins[1].x)) / 2 + cell / 2;
+        cy = (holeY(startY, c.pins[0].y) + holeY(startY, c.pins[1].y)) / 2 + cell / 2;
+      } else if (Array.isArray(c.pins) && c.pins.length === 1) {
+        cx = holeX(startX, c.pins[0].x) + cell / 2;
+        cy = holeY(startY, c.pins[0].y) + cell / 2;
+      }
+      
+      if (cx !== undefined) {
+        const radius = cell * 2.5; // Диаметр 5 отверстий (12.7 мм)
+        ctx.fillStyle = colors.fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Маленький крестик в центре или метка "+"
+        ctx.fillStyle = colors.stroke;
+        ctx.font = Math.max(10, Math.floor(cell * 0.8)) + "px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(c.ref || ""), cx, cy);
+      }
+    } else if (showBody.checked) {
       if (c.body && Number.isFinite(c.body.x1)) {
         const colors = bodyColors(c);
         const bx1 = holeX(startX, c.body.x1) + cell / 2;

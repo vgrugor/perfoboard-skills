@@ -162,17 +162,40 @@ function evaluate() {
       if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
     }
+    // Preferred orientation: keep TO-92 and Axial aligned with board axes
     if (c.type === 'to92' && c.rot !== 0) penalties += 100;
     if (c.type === 'axial' && c.span !== 2) penalties += 50 * Math.abs(c.span - 2);
   }
 
-  const bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
+  const bw = (maxX - minX + 1);
+  const bh = (maxY - minY + 1);
+  const bboxArea = bw * bh;
+  const perimeter = (bw + bh);
+  const aspect = Math.max(bw, bh) / Math.min(bw, bh);
+  
+  // Base cost: Area (weight 5.0) + Perimeter (weight 10.0)
+  // Perimeter helps avoid long "L" tails
+  let cost = bboxArea * 5.0 + perimeter * 10.0;
+  
+  // Penalty for extreme aspect ratios (L-shapes usually cause this)
+  if (aspect > 2.5) cost += (aspect - 2.5) * 200;
+
+  // Cluster gravity: keep components close to each other
+  let centerX = 0, centerY = 0;
+  for (const c of components) { centerX += c.anchorX; centerY += c.anchorY; }
+  centerX /= components.length; centerY /= components.length;
+  for (const c of components) {
+    cost += manhattan({x: c.anchorX, y: c.anchorY}, {x: centerX, y: centerY}) * 0.2;
+  }
+
   let wire = 0;
   for (const pins of Object.values(netlist)) {
     const pts = pins.map(k => pinKeyMap.get(k)).filter(p => !!p);
     if (pts.length > 1) wire += mstLength(pts);
   }
-  return bboxArea * 1.0 + wire * 0.7 + penalties;
+  
+  // High wire weight (8.0) to keep connected components together
+  return cost + wire * 8.0 + penalties;
 }
 
 function deepCopyState(comps) {

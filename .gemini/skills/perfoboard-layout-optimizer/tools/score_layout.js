@@ -87,12 +87,29 @@ componentPinNets.forEach((pins, ref) => {
 // 4. Calculate Jumpers Cost (Count + Length)
 let jumperPenalty = 0;
 let jumpersCount = 0;
+let dirtyVias = 0;
+
+const allPins = new Set();
+data.components.forEach(c => {
+  if (c.pins) c.pins.forEach(p => allPins.add(`${p.x}:${p.y}`));
+});
+
 data.nets.forEach(n => {
   if (n.jumpers) {
     jumpersCount += n.jumpers.length;
     n.jumpers.forEach(j => {
         const len = Math.abs(j.x2 - j.x1) + Math.abs(j.y2 - j.y1);
         jumperPenalty += 50 + (len * 2);
+        
+        // Clean Via Rule check
+        if (allPins.has(`${j.x1}:${j.y1}`)) {
+            console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' starts on a component pin at (${j.x1},${j.y1})`);
+            dirtyVias++;
+        }
+        if (allPins.has(`${j.x2}:${j.y2}`)) {
+            console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' ends on a component pin at (${j.x2},${j.y2})`);
+            dirtyVias++;
+        }
     });
   }
 });
@@ -100,11 +117,12 @@ data.nets.forEach(n => {
 const weights = {
   area: 1.0,
   wire: 0.5,
-  jumper: 1.0, // Теперь это множитель для jumperPenalty
-  short: 1000.0 // КЗ остается фатальным
+  jumper: 1.0, 
+  short: 1000.0,
+  dirtyVia: 500.0 // Штраф за грязный переход
 };
 
-const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short);
+const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short) + (dirtyVias * weights.dirtyVia);
 
 console.log(`
 --- Benchmark Report ---
@@ -113,6 +131,7 @@ BBox: ${w}x${h} (Area: ${bboxArea})
 Wire Length: ${wireLength}
 Jumpers: ${jumpersCount} (Penalty: ${jumperPenalty})
 Short Circuits: ${shortCircuits}
+Dirty Vias: ${dirtyVias}
 -----------------------
 TOTAL SCORE: ${score.toFixed(1)}
 -----------------------

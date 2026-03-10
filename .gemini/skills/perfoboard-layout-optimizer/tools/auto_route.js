@@ -59,17 +59,17 @@ data.nets.forEach(n => {
     }
 });
 
-// Блокируем чужие пины
+// Блокируем чужие пины и собираем ВСЕ пины для правила Clean Via
+const allPins = new Set();
 data.components.forEach(c => {
     if (c.pins) c.pins.forEach(p => {
+        allPins.add(`${p.x}:${p.y}`);
         const isTargetPin = (p.x === x1 && p.y === y1) || (p.x === x2 && p.y === y2);
-        // Если пин не принадлежит текущей цепи и не является точкой старта/финиша - блокируем
         let pinBelongsToNet = false;
         const targetNet = data.nets.find(n => n.name === netName);
         if (targetNet && targetNet.nodes) {
             pinBelongsToNet = targetNet.nodes.includes(`${c.ref}.${p.name}`);
         }
-        
         if (!isTargetPin && !pinBelongsToNet) {
             blockedHoles.add(`${p.x}:${p.y}`);
         }
@@ -91,7 +91,7 @@ while (queue.length > 0) {
 
     const newPath = [...curr.path, { x: curr.x, y: curr.y, l: curr.l }];
 
-    if (curr.x === x2 && curr.y === y2) {
+    if (curr.x === x2 && curr.y === y2 && curr.l === 0) { // Всегда заканчиваем на нижнем слое
         bestPath = newPath;
         break;
     }
@@ -101,25 +101,36 @@ while (queue.length > 0) {
         const nx = curr.x + dx;
         const ny = curr.y + dy;
 
-        if (nx >= 0 && nx < W && ny >= 0 && ny < H) { // Сетка от 0
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
             const holeKey = `${nx}:${ny}`;
             const edgeKey = `${curr.x}:${curr.y}-${nx}:${ny}`;
 
             // 1. ПУТЬ ПО НИЗУ (Layer 0)
-            if (!blockedEdges.has(edgeKey)) {
-                // Если мы на нижнем слое, проверяем отверстие (кроме случая, когда это уже наша цепь)
-                if (curr.l === 0 && (netHoles.has(holeKey) || !blockedHoles.has(holeKey))) {
-                    // Стоимость: 0.1 если ребро уже в цепи, иначе 1
+            if (curr.l === 0 && !blockedEdges.has(edgeKey)) {
+                if (netHoles.has(holeKey) || !blockedHoles.has(holeKey)) {
                     const moveCost = netEdges.has(edgeKey) ? 0.1 : 1;
                     queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + moveCost, path: newPath });
                 }
             }
 
-            // 2. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper)
-            // Джампер можно ставить только если текущее отверстие НЕ занято чужим пином
-            if (curr.l === 1 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
-                const jumperCost = (curr.l === 1) ? 2 : 50; 
-                queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + jumperCost, path: newPath });
+            // 2. ПЕРЕХОД НА ВЕРХ (Layer 1 - Jumper Start)
+            // Условие: текущее отверстие НЕ должно иметь пина (Clean Via)
+            if (curr.l === 0 && !allPins.has(`${curr.x}:${curr.y}`)) {
+                const startJumperCost = 50;
+                queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + startJumperCost, path: newPath });
+            }
+
+            // 3. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper Continue)
+            if (curr.l === 1) {
+                const continueJumperCost = 2;
+                queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + continueJumperCost, path: newPath });
+                
+                // 4. ПЕРЕХОД НА НИЗ (Layer 1 -> Layer 0 - Jumper End)
+                // Условие: целевое отверстие НЕ должно иметь пина (Clean Via)
+                if (!allPins.has(holeKey)) {
+                    const endJumperCost = 1;
+                    queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + endJumperCost, path: newPath });
+                }
             }
         }
     }

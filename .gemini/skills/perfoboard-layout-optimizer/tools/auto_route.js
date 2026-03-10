@@ -116,6 +116,7 @@ while (queue.length > 0) {
             }
 
             // 2. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper)
+            // Джампер можно ставить только если текущее отверстие НЕ занято чужим пином
             if (curr.l === 1 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
                 const jumperCost = (curr.l === 1) ? 2 : 50; 
                 queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + jumperCost, path: newPath });

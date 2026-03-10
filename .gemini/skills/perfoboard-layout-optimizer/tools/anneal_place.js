@@ -8,11 +8,11 @@ if (args.length < 1) {
 
 const inputFile = args[0];
 const opts = {
-  iters: 20000,
-  t0: 10,
+  iters: 30000,
+  t0: 100, // Increased temp
   t1: 0.1,
-  seed: 1,
-  move: 1,
+  seed: 42,
+  move: 2,
   keepNets: false
 };
 
@@ -29,10 +29,6 @@ for (let i = 1; i < args.length; i++) {
 const data = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
 const W = data.board?.width || 0;
 const H = data.board?.height || 0;
-if (!W || !H) {
-  console.log("Invalid board size");
-  process.exit(1);
-}
 
 function rngFactory(seed) {
   let x = seed >>> 0;
@@ -45,84 +41,86 @@ function rngFactory(seed) {
 }
 const rnd = rngFactory(opts.seed);
 
-function deepCopyPins(components) {
-  return components.map(c => ({
-    ref: c.ref,
-    pins: c.pins.map(p => ({ name: p.name, x: p.x, y: p.y })),
-    body: c.body ? { ...c.body } : undefined,
-    keepout: Array.isArray(c.keepout) ? c.keepout.map(k => ({ ...k })) : undefined
-  }));
+function getComponentType(p) {
+  if (p.includes('axial')) return 'axial';
+  if (p.includes('to-92')) return 'to92';
+  if (p.includes('nodemcu') || p.includes('dip')) return 'dip';
+  return 'other';
 }
 
-function applySnapshot(components, snap) {
-  for (let i = 0; i < components.length; i++) {
-    const c = components[i];
-    const s = snap[i];
-    c.ref = s.ref;
-    c.pins = s.pins.map(p => ({ ...p }));
-    c.body = s.body ? { ...s.body } : undefined;
-    c.keepout = Array.isArray(s.keepout) ? s.keepout.map(k => ({ ...k })) : undefined;
+function getInitialOrientation(c) {
+  const type = getComponentType(c.package || '');
+  if (type === 'axial') return (c.pins[0].y === c.pins[1].y) ? 0 : 90;
+  if (type === 'to92' && c.pins.length >= 3) return (c.pins[0].y === c.pins[1].y) ? 0 : 90;
+  return 0;
+}
+
+function getInitialSpan(c) {
+  if (getComponentType(c.package || '') === 'axial' && c.pins.length === 2) {
+    return Math.abs(c.pins[0].x - c.pins[1].x) + Math.abs(c.pins[0].y - c.pins[1].y);
+  }
+  return 0;
+}
+
+const components = (data.components || []).map(c => {
+  const comp = {
+    ref: c.ref,
+    package: c.package,
+    pins: c.pins.map(p => ({ ...p })),
+    origPins: c.pins.map(p => ({ ...p })),
+    type: getComponentType(c.package || ''),
+    rot: getInitialOrientation(c),
+    span: getInitialSpan(c) || 2,
+    anchorX: c.pins[0].x,
+    anchorY: c.pins[0].y,
+  };
+  return comp;
+});
+
+function updatePinsFromState(c) {
+  if (c.type === 'axial') {
+    const dx = (c.rot === 0) ? c.span : 0;
+    const dy = (c.rot === 0) ? 0 : c.span;
+    c.pins[0].x = c.anchorX; c.pins[0].y = c.anchorY;
+    c.pins[1].x = c.anchorX + dx; c.pins[1].y = c.anchorY + dy;
+  } else if (c.type === 'to92') {
+    const dx = (c.rot === 0) ? 1 : 0;
+    const dy = (c.rot === 0) ? 0 : 1;
+    c.pins.forEach((p, i) => {
+      p.x = c.anchorX + i * dx;
+      p.y = c.anchorY + i * dy;
+    });
+  } else {
+    const dx = c.anchorX - c.origPins[0].x;
+    const dy = c.anchorY - c.origPins[0].y;
+    c.pins.forEach((p, i) => {
+      p.x = c.origPins[i].x + dx;
+      p.y = c.origPins[i].y + dy;
+    });
   }
 }
-
-const components = (data.components || []).map(c => ({
-  ref: c.ref,
-  pins: (c.pins || []).map(p => ({ name: p.name, x: p.x, y: p.y })),
-  body: c.body ? { ...c.body } : undefined,
-  keepout: Array.isArray(c.keepout) ? c.keepout.map(k => ({ ...k })) : undefined
-}));
 
 const pinKeyMap = new Map();
-for (const c of components) {
-  for (const p of c.pins) {
-    pinKeyMap.set(`${c.ref}:${p.name}`, p);
-  }
-}
-
-function buildNetlistFromSegments() {
-  const pinByCoord = new Map();
+function refreshPinKeyMap() {
+  pinKeyMap.clear();
   for (const c of components) {
     for (const p of c.pins) {
-      pinByCoord.set(`${p.x}:${p.y}`, `${c.ref}:${p.name}`);
+      pinKeyMap.set(`${c.ref}.${p.name}`, p);
     }
   }
-  const netlist = {};
+}
+
+function buildNetlist() {
+  if (data.netlist) return data.netlist;
+  const nl = {};
   for (const n of (data.nets || [])) {
-    const set = new Set();
-    if (Array.isArray(n.segments)) {
-      for (const s of n.segments) {
-        const dx = Math.sign(s.x2 - s.x1);
-        const dy = Math.sign(s.y2 - s.y1);
-        let cx = s.x1, cy = s.y1;
-        while (true) {
-          const key = `${cx}:${cy}`;
-          if (pinByCoord.has(key)) set.add(pinByCoord.get(key));
-          if (cx === s.x2 && cy === s.y2) break;
-          cx += dx; cy += dy;
-        }
-      }
-    }
-    if (set.size > 0) netlist[n.name] = Array.from(set);
+    if (n.nodes) nl[n.name] = n.nodes;
   }
-  return netlist;
+  return nl;
 }
+const netlist = buildNetlist();
 
-function buildNetlistFromExplicit() {
-  if (!data.netlist) return null;
-  const netlist = {};
-  for (const [net, pins] of Object.entries(data.netlist)) {
-    if (Array.isArray(pins)) {
-      netlist[net] = pins.filter(v => typeof v === 'string');
-    }
-  }
-  return netlist;
-}
-
-const netlist = buildNetlistFromExplicit() || buildNetlistFromSegments();
-
-function manhattan(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
+function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
 
 function mstLength(points) {
   if (points.length <= 1) return 0;
@@ -132,11 +130,8 @@ function mstLength(points) {
   let total = 0;
   for (let i = 0; i < points.length; i++) {
     let v = -1;
-    for (let j = 0; j < points.length; j++) {
-      if (!used[j] && (v === -1 || dist[j] < dist[v])) v = j;
-    }
-    used[v] = true;
-    total += dist[v];
+    for (let j = 0; j < points.length; j++) { if (!used[j] && (v === -1 || dist[j] < dist[v])) v = j; }
+    used[v] = true; total += dist[v];
     for (let j = 0; j < points.length; j++) {
       if (!used[j]) {
         const d = manhattan(points[v], points[j]);
@@ -145,14 +140,6 @@ function mstLength(points) {
     }
   }
   return total;
-}
-
-function isInsideRect(p, r) {
-  const x1 = Math.min(r.x1, r.x2);
-  const x2 = Math.max(r.x1, r.x2);
-  const y1 = Math.min(r.y1, r.y2);
-  const y2 = Math.max(r.y1, r.y2);
-  return p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2;
 }
 
 function evaluate() {
@@ -165,113 +152,108 @@ function evaluate() {
       occupied.add(key);
     }
   }
-  for (const c of components) {
-    if (Array.isArray(c.keepout)) {
-      for (const other of components) {
-        if (other.ref === c.ref) continue;
-        for (const p of other.pins) {
-          for (const r of c.keepout) {
-            if (isInsideRect(p, r)) return Infinity;
-          }
-        }
-      }
-    }
-  }
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let penalties = 0;
+
+  refreshPinKeyMap();
   for (const c of components) {
     for (const p of c.pins) {
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
+      if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
     }
+    if (c.type === 'to92' && c.rot !== 0) penalties += 100;
+    if (c.type === 'axial' && c.span !== 2) penalties += 50 * Math.abs(c.span - 2);
   }
-  const bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
 
+  const bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
   let wire = 0;
   for (const pins of Object.values(netlist)) {
-    const pts = [];
-    for (const key of pins) {
-      const pin = pinKeyMap.get(key);
-      if (pin) pts.push(pin);
-    }
+    const pts = pins.map(k => pinKeyMap.get(k)).filter(p => !!p);
     if (pts.length > 1) wire += mstLength(pts);
   }
-
-  return bboxArea * 1.0 + wire * 0.5;
+  return bboxArea * 1.0 + wire * 0.7 + penalties;
 }
 
-function moveComponent(c, dx, dy) {
-  for (const p of c.pins) {
-    p.x += dx; p.y += dy;
-  }
-  if (c.body) {
-    c.body.x1 += dx; c.body.x2 += dx;
-    c.body.y1 += dy; c.body.y2 += dy;
-  }
-  if (Array.isArray(c.keepout)) {
-    for (const k of c.keepout) {
-      k.x1 += dx; k.x2 += dx;
-      k.y1 += dy; k.y2 += dy;
-    }
+function deepCopyState(comps) {
+  return comps.map(c => ({
+    anchorX: c.anchorX, anchorY: c.anchorY, rot: c.rot, span: c.span,
+    pins: c.pins.map(p => ({ ...p }))
+  }));
+}
+
+function applyState(comps, state) {
+  for (let i = 0; i < comps.length; i++) {
+    comps[i].anchorX = state[i].anchorX; comps[i].anchorY = state[i].anchorY;
+    comps[i].rot = state[i].rot; comps[i].span = state[i].span;
+    comps[i].pins = state[i].pins.map(p => ({ ...p }));
   }
 }
 
 let currentCost = evaluate();
-if (!Number.isFinite(currentCost)) {
-  console.log("Initial placement is invalid");
-  process.exit(1);
-}
-
 let bestCost = currentCost;
-let bestSnap = deepCopyPins(components);
+let bestState = deepCopyState(components);
+
+console.log(`Initial Score: ${currentCost.toFixed(2)}`);
+
+let acceptedCount = 0;
+let rejectedInf = 0;
 
 for (let i = 0; i < opts.iters; i++) {
   const idx = Math.floor(rnd() * components.length);
   const c = components[idx];
+  const oldState = { ax: c.anchorX, ay: c.anchorY, rot: c.rot, span: c.span };
 
-  let dx = 0, dy = 0;
-  while (dx === 0 && dy === 0) {
-    dx = Math.floor(rnd() * (2 * opts.move + 1)) - opts.move;
-    dy = Math.floor(rnd() * (2 * opts.move + 1)) - opts.move;
+  const roll = rnd();
+  if (roll < 0.7) {
+    c.anchorX += Math.floor(rnd() * (2 * opts.move + 1)) - opts.move;
+    c.anchorY += Math.floor(rnd() * (2 * opts.move + 1)) - opts.move;
+  } else if (roll < 0.9) {
+    if (c.type === 'axial' || c.type === 'to92') c.rot = (c.rot === 0) ? 90 : 0;
+  } else {
+    if (c.type === 'axial') c.span = 2 + Math.floor(rnd() * 4);
   }
 
-  moveComponent(c, dx, dy);
+  updatePinsFromState(c);
   const newCost = evaluate();
+  
+  if (!Number.isFinite(newCost)) {
+    rejectedInf++;
+    c.anchorX = oldState.ax; c.anchorY = oldState.ay;
+    c.rot = oldState.rot; c.span = oldState.span;
+    updatePinsFromState(c);
+    continue;
+  }
 
-  const t = opts.t0 * Math.pow(opts.t1 / opts.t0, i / Math.max(1, opts.iters - 1));
+  const t = opts.t0 * Math.pow(opts.t1 / opts.t0, i / (opts.iters - 1));
   const delta = newCost - currentCost;
-  const accept = delta <= 0 || Math.exp(-delta / Math.max(1e-9, t)) > rnd();
 
-  if (accept && Number.isFinite(newCost)) {
+  if (delta <= 0 || Math.exp(-delta / t) > rnd()) {
     currentCost = newCost;
+    acceptedCount++;
     if (newCost < bestCost) {
       bestCost = newCost;
-      bestSnap = deepCopyPins(components);
+      bestState = deepCopyState(components);
     }
   } else {
-    moveComponent(c, -dx, -dy);
+    c.anchorX = oldState.ax; c.anchorY = oldState.ay;
+    c.rot = oldState.rot; c.span = oldState.span;
+    updatePinsFromState(c);
   }
+
+  if (i % 5000 === 0) console.log(`Iter ${i}: Cost ${currentCost.toFixed(2)} (Acc: ${acceptedCount}, RejInf: ${rejectedInf})`);
 }
 
-applySnapshot(components, bestSnap);
+applyState(components, bestState);
 
 for (const c of components) {
   const target = data.components.find(x => x.ref === c.ref);
-  if (target) {
-    target.pins = c.pins.map(p => ({ name: p.name, x: p.x, y: p.y }));
-    if (c.body) target.body = { ...c.body };
-    if (Array.isArray(c.keepout)) target.keepout = c.keepout.map(k => ({ ...k }));
-  }
+  if (target) target.pins = c.pins.map(p => ({ name: p.name, x: p.x, y: p.y }));
 }
 
 if (!opts.keepNets && Array.isArray(data.nets)) {
-  for (const n of data.nets) {
-    n.segments = [];
-    n.jumpers = [];
-  }
+  for (const n of data.nets) { n.segments = []; n.jumpers = []; }
 }
 
 fs.writeFileSync(inputFile, JSON.stringify(data, null, 2));
-console.log(`Done. Best score: ${bestCost.toFixed(2)}`);
+console.log(`Optimization Done. Final Score: ${bestCost.toFixed(2)} (Total Acc: ${acceptedCount}, Total RejInf: ${rejectedInf})`);

@@ -117,15 +117,96 @@ data.nets.forEach(n => {
   }
 });
 
+// 5. Physical Collision Detection (Body Keepout Overlap)
+const bodyOccupancy = new Map(); // "x:y" -> [ref]
+let physicalCollisions = 0;
+
+function getKeepoutPoints(comp) {
+    const points = new Set();
+    const pins = comp.pins || [];
+    if (pins.length === 0) return points;
+
+    const pkg = (comp.package || "").toLowerCase();
+    
+    // Helper: add rectangle
+    const addRect = (x1, y1, x2, y2) => {
+        for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+            for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+                points.add(`${x}:${y}`);
+            }
+        }
+    };
+
+    if (pkg.includes("nodemcu")) {
+        // NodeMCU keepout: rectangular area between pin rows plus padding
+        const xs = pins.map(p => p.x);
+        const ys = pins.map(p => p.y);
+        addRect(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    } else if (pkg.includes("buzzer")) {
+        // Buzzer: Manhattan radius 2 around center of pins
+        const avgX = pins.reduce((sum, p) => sum + p.x, 0) / pins.length;
+        const avgY = pins.reduce((sum, p) => sum + p.y, 0) / pins.length;
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+                if (Math.abs(dx) + Math.abs(dy) <= 2) {
+                    points.add(`${Math.round(avgX + dx)}:${Math.round(avgY + dy)}`);
+                }
+            }
+        }
+    } else if (pkg.includes("to-92")) {
+        // TO-92: 3x2 area near pins
+        const xs = pins.map(p => p.x);
+        const ys = pins.map(p => p.y);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        addRect(minX, minY, maxX, maxY);
+        // Add 1 hole depth for body
+        if (maxX - minX > maxY - minY) addRect(minX, minY - 1, maxX, maxY + 1);
+        else addRect(minX - 1, minY, maxX + 1, maxY);
+    } else if (pkg.includes("led")) {
+        // LED: 1 hole around each pin
+        pins.forEach(p => {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    points.add(`${p.x + dx}:${p.y + dy}`);
+                }
+            }
+        });
+    } else if (pkg.includes("axial")) {
+        // Axial: only the holes between pins
+        const xs = pins.map(p => p.x);
+        const ys = pins.map(p => p.y);
+        addRect(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    } else {
+        // Default: just pins
+        pins.forEach(p => points.add(`${p.x}:${p.y}`));
+    }
+    return points;
+}
+
+data.components.forEach(c => {
+    const points = getKeepoutPoints(c);
+    points.forEach(pKey => {
+        if (!bodyOccupancy.has(pKey)) bodyOccupancy.set(pKey, []);
+        const occupants = bodyOccupancy.get(pKey);
+        if (occupants.length > 0) {
+            console.log(`BODY COLLISION: Hole ${pKey} occupied by ${occupants.join(", ")} and ${c.ref}`);
+            physicalCollisions++;
+        }
+        occupants.push(c.ref);
+    });
+});
+
 const weights = {
   area: 1.0,
   wire: 0.5,
   jumper: 1.0, 
   short: 1000.0,
-  dirtyVia: 500.0 // Штраф за грязный переход
+  dirtyVia: 500.0,
+  collision: 2000.0 // Штраф за наложение корпусов
 };
 
-const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short) + (dirtyVias * weights.dirtyVia);
+const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short) + (dirtyVias * weights.dirtyVia) + (physicalCollisions * weights.collision);
 
 console.log(`
 --- Benchmark Report ---
@@ -135,6 +216,7 @@ Wire Length: ${wireLength}
 Jumpers: ${jumpersCount} (Penalty: ${jumperPenalty})
 Short Circuits: ${shortCircuits}
 Dirty Vias: ${dirtyVias}
+Physical Collisions: ${physicalCollisions}
 -----------------------
 TOTAL SCORE: ${score.toFixed(1)}
 -----------------------

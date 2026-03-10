@@ -61,7 +61,10 @@ data.nets.forEach(n => {
 
       if (!netsByHole.has(holeKey)) netsByHole.set(holeKey, new Set());
       const netsAtHole = netsByHole.get(holeKey);
-      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) shortCircuits++;
+      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) {
+          console.log(`SHORT CIRCUIT: Hole ${holeKey} used by nets: [${Array.from(netsAtHole).join(', ')}] and [${n.name}]`);
+          shortCircuits++;
+      }
       netsAtHole.add(n.name);
 
       if (currX === s.x2 && currY === s.y2) break;

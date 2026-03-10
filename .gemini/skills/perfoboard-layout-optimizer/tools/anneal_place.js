@@ -142,14 +142,75 @@ function mstLength(points) {
   return total;
 }
 
+function getBodyHoles(c) {
+  const holes = [];
+  if (c.type === 'axial') {
+    // Body is between pin1 and pin2
+    const minX = Math.min(c.pins[0].x, c.pins[1].x);
+    const maxX = Math.max(c.pins[0].x, c.pins[1].x);
+    const minY = Math.min(c.pins[0].y, c.pins[1].y);
+    const maxY = Math.max(c.pins[0].y, c.pins[1].y);
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        // Avoid adding pin holes themselves to body list to allow trace connection, 
+        // but user asked to avoid pins under body, so we include them or handle separately.
+        // Rule: Body covers everything between pins.
+        holes.push(`${x}:${y}`);
+      }
+    }
+  } else if (c.type === 'to92') {
+    // TO-92 is 3x2 (3 pins wide, 2 holes deep)
+    const dx = (c.rot === 0) ? 1 : 0;
+    const dy = (c.rot === 0) ? 0 : 1;
+    const px = (c.rot === 0) ? 0 : 1; // perpendicular offset
+    const py = (c.rot === 0) ? 1 : 0;
+    for (let i = 0; i < 3; i++) {
+      const bx = c.anchorX + i * dx;
+      const by = c.anchorY + i * dy;
+      holes.push(`${bx}:${by}`);
+      holes.push(`${bx + px}:${by + py}`); // 2nd row of body
+    }
+  } else if (c.type === 'dip') {
+    // NodeMCU/DIP: Entire rect between pin columns
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    c.pins.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        holes.push(`${x}:${y}`);
+      }
+    }
+  }
+  return holes;
+}
+
 function evaluate() {
-  const occupied = new Set();
+  const occupiedPins = new Map(); // key -> ref
+  const occupiedBodies = new Map(); // key -> ref
+  
   for (const c of components) {
+    // Pin collisions
     for (const p of c.pins) {
       if (p.x < 1 || p.x > W || p.y < 1 || p.y > H) return Infinity;
       const key = `${p.x}:${p.y}`;
-      if (occupied.has(key)) return Infinity;
-      occupied.add(key);
+      if (occupiedPins.has(key)) return Infinity;
+      occupiedPins.set(key, c.ref);
+    }
+    
+    // Body collisions
+    const bHoles = getBodyHoles(c);
+    for (const h of bHoles) {
+      if (occupiedBodies.has(h)) return Infinity; // Body-to-Body collision
+      occupiedBodies.set(h, c.ref);
+    }
+  }
+
+  // Cross-collision: Pin of A inside Body of B
+  for (const [pos, pinRef] of occupiedPins) {
+    if (occupiedBodies.has(pos) && occupiedBodies.get(pos) !== pinRef) {
+      return Infinity; // Pin under someone else's body
     }
   }
 
@@ -182,20 +243,43 @@ function evaluate() {
 
   // Cluster gravity: keep components close to each other
   let centerX = 0, centerY = 0;
-  for (const c of components) { centerX += c.anchorX; centerY += c.anchorY; }
-  centerX /= components.length; centerY /= components.length;
+  let hasAnchor = false;
+  for (const c of components) { 
+    if (c.type === 'dip') { // NodeMCU is usually 'dip' type in this script
+      centerX = c.anchorX + (c.rot === 0 ? 5 : 7); // Rough center of NodeMCU
+      centerY = c.anchorY + (c.rot === 0 ? 7 : 5);
+      hasAnchor = true;
+      break;
+    }
+  }
+  
+  if (!hasAnchor) {
+    for (const c of components) { centerX += c.anchorX; centerY += c.anchorY; }
+    centerX /= components.length; centerY /= components.length;
+  }
+
   for (const c of components) {
-    cost += manhattan({x: c.anchorX, y: c.anchorY}, {x: centerX, y: centerY}) * 0.2;
+    const dist = manhattan({x: c.anchorX, y: c.anchorY}, {x: centerX, y: centerY});
+    cost += dist * (hasAnchor ? 2.0 : 0.5); // Stronger gravity if anchor exists
   }
 
   let wire = 0;
+  let adjacencyPenalty = 0;
   for (const pins of Object.values(netlist)) {
     const pts = pins.map(k => pinKeyMap.get(k)).filter(p => !!p);
-    if (pts.length > 1) wire += mstLength(pts);
+    if (pts.length > 1) {
+      const len = mstLength(pts);
+      wire += len;
+      // Adjacency Penalty: if points are more than 1 unit apart, add extra cost
+      // This forces components to touch each other if they share a net
+      if (len > pts.length - 1) {
+        adjacencyPenalty += (len - (pts.length - 1)) * 15.0;
+      }
+    }
   }
   
-  // High wire weight (8.0) to keep connected components together
-  return cost + wire * 8.0 + penalties;
+  // High wire weight (10.0) and Adjacency Penalty to keep connected components together
+  return cost + wire * 10.0 + adjacencyPenalty + penalties;
 }
 
 function deepCopyState(comps) {

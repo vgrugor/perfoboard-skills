@@ -19,34 +19,41 @@ const H = data.board.height;
 // 1. Построение карты препятствий (Улучшенное)
 const blockedHoles = new Set();
 const blockedEdges = new Set(); // "x1:y1-x2:y2"
+const netEdges = new Set(); // Ребра текущей цепи для переиспользования
+const netHoles = new Set(); // Отверстия текущей цепи
 
 data.nets.forEach(n => {
-    // Блокируем отверстия и ребра от существующих сегментов
     if (n.segments) {
         n.segments.forEach(s => {
-            const dx = Math.sign(s.x2 - s.x1);
-            const dy = Math.sign(s.y2 - s.y1);
-            let cx = s.x1, cy = s.y1;
-            while (true) {
-                if (n.name !== netName) blockedHoles.add(`${cx}:${cy}`);
-                if (cx === s.x2 && cy === s.y2) break;
-                const pX = cx, pY = cy;
-                cx += dx; cy += dy;
-                if (n.name !== netName) {
-                    blockedEdges.add(`${pX}:${pY}-${cx}:${cy}`);
-                    blockedEdges.add(`${cx}:${cy}-${pX}:${pY}`);
+            const edgeKey1 = `${s.x1}:${s.y1}-${s.x2}:${s.y2}`;
+            const edgeKey2 = `${s.x2}:${s.y2}-${s.x1}:${s.y1}`;
+            
+            if (n.name === netName) {
+                netEdges.add(edgeKey1);
+                netEdges.add(edgeKey2);
+                netHoles.add(`${s.x1}:${s.y1}`);
+                netHoles.add(`${s.x2}:${s.y2}`);
+            } else {
+                blockedEdges.add(edgeKey1);
+                blockedEdges.add(edgeKey2);
+                
+                // Блокируем все отверстия на пути чужого сегмента
+                const dx = Math.sign(s.x2 - s.x1);
+                const dy = Math.sign(s.y2 - s.y1);
+                let cx = s.x1, cy = s.y1;
+                while (true) {
+                    blockedHoles.add(`${cx}:${cy}`);
+                    if (cx === s.x2 && cy === s.y2) break;
+                    cx += dx; cy += dy;
                 }
             }
         });
     }
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Блокируем отверстия, занятые джамперами
     if (n.jumpers) {
         n.jumpers.forEach(j => {
             if (n.name !== netName) {
                 blockedHoles.add(`${j.x1}:${j.y1}`);
                 blockedHoles.add(`${j.x2}:${j.y2}`);
-                // Ребро джампера (верхний слой) не блокирует нижний слой, 
-                // но точки входа (holes) теперь заблокированы.
             }
         });
     }
@@ -55,9 +62,15 @@ data.nets.forEach(n => {
 // Блокируем чужие пины
 data.components.forEach(c => {
     if (c.pins) c.pins.forEach(p => {
-        if (!((p.x === x1 && p.y === y1) || (p.x === x2 && p.y === y2))) {
-            // Если это не наша точка старта/финиша, и мы не знаем чей это пин - на всякий случай блокируем
-            // (В идеале тут должна быть проверка связи пина с нетом)
+        const isTargetPin = (p.x === x1 && p.y === y1) || (p.x === x2 && p.y === y2);
+        // Если пин не принадлежит текущей цепи и не является точкой старта/финиша - блокируем
+        let pinBelongsToNet = false;
+        const targetNet = data.nets.find(n => n.name === netName);
+        if (targetNet && targetNet.nodes) {
+            pinBelongsToNet = targetNet.nodes.includes(`${c.ref}.${p.name}`);
+        }
+        
+        if (!isTargetPin && !pinBelongsToNet) {
             blockedHoles.add(`${p.x}:${p.y}`);
         }
     });
@@ -88,22 +101,21 @@ while (queue.length > 0) {
         const nx = curr.x + dx;
         const ny = curr.y + dy;
 
-        if (nx >= 1 && nx <= W && ny >= 1 && ny <= H) {
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H) { // Сетка от 0
             const holeKey = `${nx}:${ny}`;
             const edgeKey = `${curr.x}:${curr.y}-${nx}:${ny}`;
 
             // 1. ПУТЬ ПО НИЗУ (Layer 0)
-            // Можно двигаться по низу, только если и текущая, и следующая точки свободны (для перехода 1->0)
-            // Но фактически curr.l === 0 уже гарантирует, что curr был свободен (или был стартом).
-            if (!blockedHoles.has(holeKey) && !blockedEdges.has(edgeKey)) {
-                // Если мы переходим с верха на низ, текущая точка ДОЛЖНА быть свободна
-                if (curr.l === 0 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
-                    queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + 1, path: newPath });
+            if (!blockedEdges.has(edgeKey)) {
+                // Если мы на нижнем слое, проверяем отверстие (кроме случая, когда это уже наша цепь)
+                if (curr.l === 0 && (netHoles.has(holeKey) || !blockedHoles.has(holeKey))) {
+                    // Стоимость: 0.1 если ребро уже в цепи, иначе 1
+                    const moveCost = netEdges.has(edgeKey) ? 0.1 : 1;
+                    queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + moveCost, path: newPath });
                 }
             }
 
             // 2. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper)
-            // Перейти на верх можно только из свободной точки
             if (curr.l === 1 || !blockedHoles.has(`${curr.x}:${curr.y}`)) {
                 const jumperCost = (curr.l === 1) ? 2 : 50; 
                 queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + jumperCost, path: newPath });
@@ -123,13 +135,21 @@ if (!targetNet) {
     targetNet = { name: netName, segments: [], jumpers: [] };
     data.nets.push(targetNet);
 }
+if (!targetNet.segments) targetNet.segments = [];
 if (!targetNet.jumpers) targetNet.jumpers = [];
 
 for (let i = 1; i < bestPath.length; i++) {
     const p1 = bestPath[i-1];
     const p2 = bestPath[i];
     if (p2.l === 0) {
-        targetNet.segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        // Добавляем только если такого сегмента еще нет
+        const exists = targetNet.segments.some(s => 
+            (s.x1 === p1.x && s.y1 === p1.y && s.x2 === p2.x && s.y2 === p2.y) ||
+            (s.x1 === p2.x && s.y1 === p2.y && s.x2 === p1.x && s.y2 === p1.y)
+        );
+        if (!exists) {
+            targetNet.segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        }
     } else {
         targetNet.jumpers.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
     }

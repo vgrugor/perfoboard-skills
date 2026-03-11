@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь светодиоды THT (2 вывода) на perfboard, используй это правило для полярности, ориентации и keepout корпуса."
 alwaysApply: false
+allowPlacementUnderBoard: true
 ---
 
 # Правила размещения: LED-THT (2PIN)

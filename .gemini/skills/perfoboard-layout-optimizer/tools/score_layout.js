@@ -4,17 +4,17 @@ const file = process.argv[2] || 'layout/ne555-astable.json';
 const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 
 if (!data.components || !data.nets) {
-  console.log("Invalid format");
-  process.exit(1);
+    console.log("Invalid format");
+    process.exit(1);
 }
 
 // Bbox Calculation
 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 data.components.forEach(c => {
-  if (c.pins) c.pins.forEach(p => {
-    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
-  });
+    if (c.pins) c.pins.forEach(p => {
+        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+    });
 });
 const w = maxX - minX + 1;
 const h = maxY - minY + 1;
@@ -23,54 +23,54 @@ const bboxArea = w * h;
 // Wire Length (Manhattan)
 let wireLength = 0;
 data.nets.forEach(n => {
-  if (n.segments) {
-    n.segments.forEach(s => {
-      wireLength += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
-    });
-  }
+    if (n.segments) {
+        n.segments.forEach(s => {
+            wireLength += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
+        });
+    }
 });
 
 // Short Circuit, Hole, Intersection & Bypass Detection
-const netsByHole = new Map(); 
+const netsByHole = new Map();
 let shortCircuits = 0;
 
 // Индексация: какой пин какой детали к какой цепи подключен
 const componentPinNets = new Map(); // "ref" -> { pinName -> netName }
 
 data.nets.forEach(n => {
-  if (!n.segments) return;
-  n.segments.forEach(s => {
-    const dx = Math.sign(s.x2 - s.x1);
-    const dy = Math.sign(s.y2 - s.y1);
-    let currX = s.x1; let currY = s.y1;
-    while (true) {
-      const holeKey = `${currX}:${currY}`;
-      
-      // Ищем, не пин ли это
-      data.components.forEach(c => {
-          if (c.pins) {
-              c.pins.forEach(p => {
-                  if (p.x === currX && p.y === currY) {
-                      if (!componentPinNets.has(c.ref)) componentPinNets.set(c.ref, {});
-                      const pins = componentPinNets.get(c.ref);
-                      pins[p.name] = n.name;
-                  }
-              });
-          }
-      });
+    if (!n.segments) return;
+    n.segments.forEach(s => {
+        const dx = Math.sign(s.x2 - s.x1);
+        const dy = Math.sign(s.y2 - s.y1);
+        let currX = s.x1; let currY = s.y1;
+        while (true) {
+            const holeKey = `${currX}:${currY}`;
 
-      if (!netsByHole.has(holeKey)) netsByHole.set(holeKey, new Set());
-      const netsAtHole = netsByHole.get(holeKey);
-      if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) {
-          console.log(`SHORT CIRCUIT: Hole ${holeKey} used by nets: [${Array.from(netsAtHole).join(', ')}] and [${n.name}]`);
-          shortCircuits++;
-      }
-      netsAtHole.add(n.name);
+            // Ищем, не пин ли это
+            data.components.forEach(c => {
+                if (c.pins) {
+                    c.pins.forEach(p => {
+                        if (p.x === currX && p.y === currY) {
+                            if (!componentPinNets.has(c.ref)) componentPinNets.set(c.ref, {});
+                            const pins = componentPinNets.get(c.ref);
+                            pins[p.name] = n.name;
+                        }
+                    });
+                }
+            });
 
-      if (currX === s.x2 && currY === s.y2) break;
-      currX += dx; currY += dy;
-    }
-  });
+            if (!netsByHole.has(holeKey)) netsByHole.set(holeKey, new Set());
+            const netsAtHole = netsByHole.get(holeKey);
+            if (netsAtHole.size > 0 && !netsAtHole.has(n.name)) {
+                console.log(`SHORT CIRCUIT: Hole ${holeKey} used by nets: [${Array.from(netsAtHole).join(', ')}] and [${n.name}]`);
+                shortCircuits++;
+            }
+            netsAtHole.add(n.name);
+
+            if (currX === s.x2 && currY === s.y2) break;
+            currX += dx; currY += dy;
+        }
+    });
 });
 
 // Проверка на Bypass (замыкание компонента самим собой)
@@ -91,30 +91,47 @@ componentPinNets.forEach((pins, ref) => {
 let jumperPenalty = 0;
 let jumpersCount = 0;
 let dirtyVias = 0;
+let jumperOverPinErrors = 0;
 
-const allPins = new Set();
+const allPins = new Map(); // "x:y" -> ref
 data.components.forEach(c => {
-  if (c.pins) c.pins.forEach(p => allPins.add(`${p.x}:${p.y}`));
+    if (c.pins) c.pins.forEach(p => allPins.set(`${p.x}:${p.y}`, c.ref));
 });
 
 data.nets.forEach(n => {
-  if (n.jumpers) {
-    jumpersCount += n.jumpers.length;
-    n.jumpers.forEach(j => {
-        const len = Math.abs(j.x2 - j.x1) + Math.abs(j.y2 - j.y1);
-        jumperPenalty += 50 + (len * 2);
-        
-        // Clean Via Rule check
-        if (allPins.has(`${j.x1}:${j.y1}`)) {
-            console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' starts on a component pin at (${j.x1},${j.y1})`);
-            dirtyVias++;
-        }
-        if (allPins.has(`${j.x2}:${j.y2}`)) {
-            console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' ends on a component pin at (${j.x2},${j.y2})`);
-            dirtyVias++;
-        }
-    });
-  }
+    if (n.jumpers) {
+        jumpersCount += n.jumpers.length;
+        n.jumpers.forEach(j => {
+            const dx = Math.sign(j.x2 - j.x1);
+            const dy = Math.sign(j.y2 - j.y1);
+            const len = Math.abs(j.x2 - j.x1) + Math.abs(j.y2 - j.y1);
+            jumperPenalty += 50 + (len * 2);
+
+            // Clean Via Rule check (Endpoints)
+            if (allPins.has(`${j.x1}:${j.y1}`)) {
+                console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' starts on a component pin at (${j.x1},${j.y1})`);
+                dirtyVias++;
+            }
+            if (allPins.has(`${j.x2}:${j.y2}`)) {
+                console.log(`DIRTY VIA ERROR: Jumper in net '${n.name}' ends on a component pin at (${j.x2},${j.y2})`);
+                dirtyVias++;
+            }
+
+            // Jumper Over Pin check (Intermediate holes)
+            let currX = j.x1 + dx; let currY = j.y1 + dy;
+            // Only check intermediate holes, endpoints are checked by Dirty Via
+            if (len > 1) {
+                while (!(currX === j.x2 && currY === j.y2)) {
+                    const holeKey = `${currX}:${currY}`;
+                    if (allPins.has(holeKey)) {
+                        console.log(`JUMPER OVER PIN ERROR: Jumper in net '${n.name}' (${j.x1},${j.y1})->(${j.x2},${j.y2}) passes over pin of ${allPins.get(holeKey)} at ${holeKey}`);
+                        jumperOverPinErrors++;
+                    }
+                    currX += dx; currY += dy;
+                }
+            }
+        });
+    }
 });
 
 // 5. Physical Collision Detection (Body Keepout Overlap)
@@ -127,7 +144,7 @@ function getKeepoutPoints(comp) {
     if (pins.length === 0) return points;
 
     const pkg = (comp.package || "").toLowerCase();
-    
+
     // Helper: add rectangle
     const addRect = (x1, y1, x2, y2) => {
         for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
@@ -184,29 +201,60 @@ function getKeepoutPoints(comp) {
     return points;
 }
 
+const holeOccupancy = new Map();
 data.components.forEach(c => {
+    const pkg = (c.package || "").toLowerCase();
+    const hasClearance = pkg.includes("nodemcu");
+    const allowUnder = pkg.includes("axial") || pkg.includes("buzzer") || pkg.includes("to-92") || pkg.includes("led") || pkg.includes("radial") || pkg.includes("dip");
+    const pinPoints = new Set((c.pins || []).map(p => `${p.x}:${p.y}`));
     const points = getKeepoutPoints(c);
+
     points.forEach(pKey => {
-        if (!bodyOccupancy.has(pKey)) bodyOccupancy.set(pKey, []);
-        const occupants = bodyOccupancy.get(pKey);
-        if (occupants.length > 0) {
-            console.log(`BODY COLLISION: Hole ${pKey} occupied by ${occupants.join(", ")} and ${c.ref}`);
-            physicalCollisions++;
-        }
-        occupants.push(c.ref);
+        const isPin = pinPoints.has(pKey);
+        if (!holeOccupancy.has(pKey)) holeOccupancy.set(pKey, []);
+        const occupants = holeOccupancy.get(pKey);
+
+        occupants.forEach(occ => {
+            let collision = false;
+            if (isPin && occ.isPin) {
+                // Пин на пин — всегда коллизия
+                collision = true;
+            } else if (isPin || occ.isPin) {
+                // Пин на корпус
+                const pinComp = isPin ? { hasClearance, allowUnder } : occ;
+                const bodyComp = isPin ? occ : { hasClearance, allowUnder };
+
+                if (pinComp.allowUnder && bodyComp.hasClearance) {
+                    // Разрешено: пин "проходящей" детали под "высоким" корпусом
+                    collision = false;
+                } else {
+                    collision = true;
+                }
+            } else {
+                // Корпус на корпус
+                if (!(hasClearance && occ.allowUnder) && !(occ.hasClearance && allowUnder)) collision = true;
+            }
+
+            if (collision) {
+                console.log(`BODY COLLISION: Hole ${pKey} occupied by ${occ.ref} and ${c.ref}`);
+                physicalCollisions++;
+            }
+        });
+        occupants.push({ ref: c.ref, pkg, isPin, hasClearance, allowUnder });
     });
 });
 
 const weights = {
-  area: 1.0,
-  wire: 0.5,
-  jumper: 1.0, 
-  short: 1000.0,
-  dirtyVia: 500.0,
-  collision: 2000.0 // Штраф за наложение корпусов
+    area: 1.0,
+    wire: 0.5,
+    jumper: 1.0,
+    short: 1000.0,
+    dirtyVia: 500.0,
+    jumperOverPin: 1000.0,
+    collision: 2000.0 // Штраф за наложение корпусов
 };
 
-const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short) + (dirtyVias * weights.dirtyVia) + (physicalCollisions * weights.collision);
+const score = (bboxArea * weights.area) + (wireLength * weights.wire) + (jumperPenalty * weights.jumper) + (shortCircuits * weights.short) + (dirtyVias * weights.dirtyVia) + (jumperOverPinErrors * weights.jumperOverPin) + (physicalCollisions * weights.collision);
 
 console.log(`
 --- Benchmark Report ---
@@ -216,6 +264,7 @@ Wire Length: ${wireLength}
 Jumpers: ${jumpersCount} (Penalty: ${jumperPenalty})
 Short Circuits: ${shortCircuits}
 Dirty Vias: ${dirtyVias}
+Jumper Over Pin Errors: ${jumperOverPinErrors}
 Physical Collisions: ${physicalCollisions}
 -----------------------
 TOTAL SCORE: ${score.toFixed(1)}

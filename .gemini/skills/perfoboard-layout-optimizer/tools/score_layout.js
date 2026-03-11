@@ -171,15 +171,12 @@ function getKeepoutPoints(comp) {
             }
         }
     } else if (pkg.includes("to-92")) {
-        // TO-92: 3x2 area near pins
+        // TO-92: Only pins area for high mounting (3x1)
         const xs = pins.map(p => p.x);
         const ys = pins.map(p => p.y);
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
         addRect(minX, minY, maxX, maxY);
-        // Add 1 hole depth for body
-        if (maxX - minX > maxY - minY) addRect(minX, minY - 1, maxX, maxY + 1);
-        else addRect(minX - 1, minY, maxX + 1, maxY);
     } else if (pkg.includes("led")) {
         // LED: 1 hole around each pin
         pins.forEach(p => {
@@ -204,8 +201,12 @@ function getKeepoutPoints(comp) {
 const holeOccupancy = new Map();
 data.components.forEach(c => {
     const pkg = (c.package || "").toLowerCase();
-    const hasClearance = pkg.includes("nodemcu");
-    const allowUnder = pkg.includes("axial") || pkg.includes("buzzer") || pkg.includes("to-92") || pkg.includes("led") || pkg.includes("radial") || pkg.includes("dip");
+    
+    // Приоритет отдается свойствам в JSON, если их нет — определяем по типу пакета
+    const hasClearance = c.hasClearanceUnderneath !== undefined ? c.hasClearanceUnderneath : pkg.includes("nodemcu");
+    const allowUnder = c.allowPlacementUnderBoard !== undefined ? c.allowPlacementUnderBoard : 
+        (pkg.includes("axial") || pkg.includes("buzzer") || pkg.includes("to-92") || pkg.includes("led") || pkg.includes("radial") || pkg.includes("dip") || pkg.includes("header") || pkg.includes("0805") || pkg.includes("1206"));
+
     const pinPoints = new Set((c.pins || []).map(p => `${p.x}:${p.y}`));
     const points = getKeepoutPoints(c);
 
@@ -216,23 +217,29 @@ data.components.forEach(c => {
 
         occupants.forEach(occ => {
             let collision = false;
+            
             if (isPin && occ.isPin) {
-                // Пин на пин — всегда коллизия
+                // Пин на пин — всегда коллизия в одном отверстии
                 collision = true;
             } else if (isPin || occ.isPin) {
-                // Пин на корпус
-                const pinComp = isPin ? { hasClearance, allowUnder } : occ;
-                const bodyComp = isPin ? occ : { hasClearance, allowUnder };
+                // Пин одного компонента в зоне корпуса другого
+                const pinComp = isPin ? { ref: c.ref, hasClearance, allowUnder } : occ;
+                const bodyComp = isPin ? occ : { ref: c.ref, hasClearance, allowUnder };
 
+                // Разрешено, если деталь с пином помечена как allowUnder, а деталь с корпусом — как hasClearance
                 if (pinComp.allowUnder && bodyComp.hasClearance) {
-                    // Разрешено: пин "проходящей" детали под "высоким" корпусом
                     collision = false;
                 } else {
                     collision = true;
                 }
             } else {
                 // Корпус на корпус
-                if (!(hasClearance && occ.allowUnder) && !(occ.hasClearance && allowUnder)) collision = true;
+                // Разрешено, если один имеет Clearance, а другой — allowUnder
+                if ((hasClearance && occ.allowUnder) || (occ.hasClearance && allowUnder)) {
+                    collision = false;
+                } else {
+                    collision = true;
+                }
             }
 
             if (collision) {

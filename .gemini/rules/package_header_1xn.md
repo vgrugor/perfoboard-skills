@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь штырьковые разъёмы/гребёнки 1×N (THT) на perfboard, используй это правило для линейного footprint и keepout."
 alwaysApply: false
+allowPlacementUnderBoard: false
 ---
 
 # Правила размещения: HEADER-1xN (THT)

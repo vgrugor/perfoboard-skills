@@ -27,7 +27,7 @@ data.nets.forEach(n => {
         n.segments.forEach(s => {
             const edgeKey1 = `${s.x1}:${s.y1}-${s.x2}:${s.y2}`;
             const edgeKey2 = `${s.x2}:${s.y2}-${s.x1}:${s.y1}`;
-            
+
             if (n.name === netName) {
                 netEdges.add(edgeKey1);
                 netEdges.add(edgeKey2);
@@ -36,7 +36,7 @@ data.nets.forEach(n => {
             } else {
                 blockedEdges.add(edgeKey1);
                 blockedEdges.add(edgeKey2);
-                
+
                 // Блокируем все отверстия на пути чужого сегмента
                 const dx = Math.sign(s.x2 - s.x1);
                 const dy = Math.sign(s.y2 - s.y1);
@@ -122,9 +122,12 @@ while (queue.length > 0) {
 
             // 3. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper Continue)
             if (curr.l === 1) {
-                const continueJumperCost = 2;
+                // Если отверстие занято пином, добавляем огромный штраф (1000), 
+                // что заставит A* искать путь в обход.
+                const isOverPin = allPins.has(holeKey);
+                const continueJumperCost = 2 + (isOverPin ? 1000 : 0);
                 queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + continueJumperCost, path: newPath });
-                
+
                 // 4. ПЕРЕХОД НА НИЗ (Layer 1 -> Layer 0 - Jumper End)
                 // Условие: целевое отверстие НЕ должно иметь пина (Clean Via)
                 if (!allPins.has(holeKey)) {
@@ -151,11 +154,11 @@ if (!targetNet.segments) targetNet.segments = [];
 if (!targetNet.jumpers) targetNet.jumpers = [];
 
 for (let i = 1; i < bestPath.length; i++) {
-    const p1 = bestPath[i-1];
+    const p1 = bestPath[i - 1];
     const p2 = bestPath[i];
     if (p2.l === 0) {
         // Добавляем только если такого сегмента еще нет
-        const exists = targetNet.segments.some(s => 
+        const exists = targetNet.segments.some(s =>
             (s.x1 === p1.x && s.y1 === p1.y && s.x2 === p2.x && s.y2 === p2.y) ||
             (s.x1 === p2.x && s.y1 === p2.y && s.x2 === p1.x && s.y2 === p1.y)
         );

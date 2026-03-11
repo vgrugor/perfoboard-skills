@@ -63,6 +63,7 @@ function getInitialSpan(c) {
 }
 
 const components = (data.components || []).map(c => {
+  const pkg = (c.package || "").toLowerCase();
   const comp = {
     ref: c.ref,
     package: c.package,
@@ -73,6 +74,8 @@ const components = (data.components || []).map(c => {
     span: getInitialSpan(c) || 2,
     anchorX: c.pins[0].x,
     anchorY: c.pins[0].y,
+    hasClearance: pkg.includes('nodemcu'),
+    allowUnder: pkg.includes("axial") || pkg.includes("buzzer") || pkg.includes("to-92") || pkg.includes("led") || pkg.includes("radial") || pkg.includes("dip")
   };
   return comp;
 });
@@ -187,30 +190,34 @@ function getBodyHoles(c) {
 }
 
 function evaluate() {
-  const occupiedPins = new Map(); // key -> ref
-  const occupiedBodies = new Map(); // key -> ref
+  const holeOccupancy = new Map(); // key -> [comp]
   
   for (const c of components) {
-    // Pin collisions
     for (const p of c.pins) {
-      if (p.x < 1 || p.x > W || p.y < 1 || p.y > H) return Infinity;
-      const key = `${p.x}:${p.y}`;
-      if (occupiedPins.has(key)) return Infinity;
-      occupiedPins.set(key, c.ref);
+      if (p.x < 1 || p.x > W || p.y < 1 || p.y > H) return Infinity; // out of bounds
     }
     
-    // Body collisions
+    const pinsSet = new Set(c.pins.map(p => `${p.x}:${p.y}`));
     const bHoles = getBodyHoles(c);
-    for (const h of bHoles) {
-      if (occupiedBodies.has(h)) return Infinity; // Body-to-Body collision
-      occupiedBodies.set(h, c.ref);
-    }
-  }
-
-  // Cross-collision: Pin of A inside Body of B
-  for (const [pos, pinRef] of occupiedPins) {
-    if (occupiedBodies.has(pos) && occupiedBodies.get(pos) !== pinRef) {
-      return Infinity; // Pin under someone else's body
+    const allHoles = new Set([...pinsSet, ...bHoles]);
+    
+    for (const h of allHoles) {
+      const isPin = pinsSet.has(h);
+      if (!holeOccupancy.has(h)) holeOccupancy.set(h, []);
+      const occupants = holeOccupancy.get(h);
+      
+      for (const occ of occupants) {
+        let collision = false;
+        if (isPin || occ.isPin) {
+            // Пины сталкиваются с любыми телами и другими пинами
+            collision = true;
+        } else {
+            // Body-to-Body: разрешаем только если один clearance, а другой allowUnder
+            if (!(c.hasClearance && occ.allowUnder) && !(occ.hasClearance && c.allowUnder)) collision = true;
+        }
+        if (collision) return Infinity;
+      }
+      occupants.push({ ref: c.ref, isPin: isPin, hasClearance: c.hasClearance, allowUnder: c.allowUnder });
     }
   }
 

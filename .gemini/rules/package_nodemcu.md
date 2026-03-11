@@ -1,6 +1,8 @@
 ---
 description: "Когда в задаче встречаются модули NodeMCU (ESP8266 dev kit) на perfboard, используй это правило для допустимого footprint и ориентации."
 alwaysApply: false
+hasClearanceUnderneath: true
+allowPlacementUnderBoard: false
 ---
 
 # Правила размещения: NodeMCU (THT/Module)

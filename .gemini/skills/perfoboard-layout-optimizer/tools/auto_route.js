@@ -31,8 +31,16 @@ data.nets.forEach(n => {
             if (n.name === netName) {
                 netEdges.add(edgeKey1);
                 netEdges.add(edgeKey2);
-                netHoles.add(`${s.x1}:${s.y1}`);
-                netHoles.add(`${s.x2}:${s.y2}`);
+                
+                // Добавляем ВСЕ отверстия существующей сети в netHoles
+                const dx = Math.sign(s.x2 - s.x1);
+                const dy = Math.sign(s.y2 - s.y1);
+                let cx = s.x1, cy = s.y1;
+                while (true) {
+                    netHoles.add(`${cx}:${cy}`);
+                    if (cx === s.x2 && cy === s.y2) break;
+                    cx += dx; cy += dy;
+                }
             } else {
                 blockedEdges.add(edgeKey1);
                 blockedEdges.add(edgeKey2);
@@ -73,6 +81,9 @@ data.components.forEach(c => {
         if (!isTargetPin && !pinBelongsToNet) {
             blockedHoles.add(`${p.x}:${p.y}`);
         }
+        if (pinBelongsToNet) {
+            netHoles.add(`${p.x}:${p.y}`);
+        }
     });
 });
 
@@ -90,8 +101,12 @@ while (queue.length > 0) {
     visited.set(key, curr.cost);
 
     const newPath = [...curr.path, { x: curr.x, y: curr.y, l: curr.l }];
+    const holeKey = `${curr.x}:${curr.y}`;
 
-    if (curr.x === x2 && curr.y === y2 && curr.l === 0) { // Всегда заканчиваем на нижнем слое
+    // ПУНКТ НАЗНАЧЕНИЯ: либо x2,y2, либо любая точка существующей сети (кроме старта)
+    const isGoal = (curr.x === x2 && curr.y === y2) || (netHoles.has(holeKey) && curr.path.length > 0);
+
+    if (isGoal && curr.l === 0) { // Всегда заканчиваем на нижнем слое
         bestPath = newPath;
         break;
     }

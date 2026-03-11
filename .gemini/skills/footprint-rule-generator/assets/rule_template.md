@@ -1,6 +1,8 @@
 ---
 description: "Когда в задаче встречаются компоненты в корпусе {{PACKAGE_NAME}} на perfboard, используй это правило для допустимого footprint и ориентации."
 alwaysApply: false
+hasClearanceUnderneath: false
+allowPlacementUnderBoard: false
 ---
 
 # Правила размещения: {{PACKAGE_NAME}} ({{MOUNTING_TYPE}})

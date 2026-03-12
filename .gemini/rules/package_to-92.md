@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь транзисторы/стабилизаторы/датчики в TO-92 на perfboard, используй это правило для 3 выводов, допустимого разведения ножек и keepout корпуса."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: true
 ---
 

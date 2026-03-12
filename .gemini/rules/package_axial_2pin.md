@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь двухвыводные осевые детали (резистор/диод/осевой конденсатор) на perfboard, используй это правило для допустимых расстояний и изгибов выводов."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: true
 ---
 

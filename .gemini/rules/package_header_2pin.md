@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь штырьковые разъёмы/гребёнки 2-pin (THT) на perfboard, используй это правило."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: false
 ---
 

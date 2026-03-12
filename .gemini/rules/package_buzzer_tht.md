@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь буззер (пьезо/активный) THT на perfboard, используй это правило для шага выводов, полярности и зоны корпуса."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: true
 ---
 

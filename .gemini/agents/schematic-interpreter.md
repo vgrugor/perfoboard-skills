@@ -8,6 +8,7 @@ tools:
   - write_file
   - run_shell_command
   - list_directory
+timeout_mins: 10
 ---
 
 # Роль: Старший инженер-электроник (Автономный режим)

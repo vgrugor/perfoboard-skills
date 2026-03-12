@@ -1,5 +1,7 @@
+---
 description: "Размещение TO-220 на perfboard по умолчанию без радиаторов/винтов: 3 пина, без дополнительного keepout; доглег запрещён, разрешается только по явному запросу пользователя."
 alwaysApply: false
+allowPlacementUnderBoard: false
 ---
 
 # Правила размещения: TO-220 (THT)

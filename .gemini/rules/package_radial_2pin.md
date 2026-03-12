@@ -1,6 +1,7 @@
 ---
 description: "Когда размещаешь двухвыводные радиальные детали (керамика/плёнка/электролит) на perfboard, используй это правило для шага выводов, полярности и keepout."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: true
 ---
 

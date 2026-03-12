@@ -1,6 +1,7 @@
 ---
 description: "Когда в задаче встречаются DIP-корпуса (DIP-4/6/8/14/16/18/20/28 и т.п.) на perfboard, используй это правило для допустимого footprint и ориентации."
 alwaysApply: false
+hasClearanceUnderneath: false
 allowPlacementUnderBoard: true
 ---
 

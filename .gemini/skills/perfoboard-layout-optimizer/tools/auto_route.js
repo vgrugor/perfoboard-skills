@@ -21,6 +21,45 @@ const blockedHoles = new Set();
 const blockedEdges = new Set(); // "x1:y1-x2:y2"
 const netEdges = new Set(); // Ребра текущей цепи для переиспользования
 const netHoles = new Set(); // Отверстия текущей цепи
+const bonusHoles = new Map(); // "x:y" -> cost multiplier (0.6 для прохода под корпусами)
+
+// Функция определения точек корпуса (аналогично score_layout.js)
+function getUnderBodyPoints(comp) {
+    const points = new Set();
+    const pins = comp.pins || [];
+    if (pins.length === 0) return points;
+    const pkg = (comp.package || "").toLowerCase();
+    const pinKeys = new Set(pins.map(p => `${p.x}:${p.y}`));
+
+    const addRect = (x1, y1, x2, y2) => {
+        for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+            for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+                const key = `${x}:${y}`;
+                if (!pinKeys.has(key)) points.add(key);
+            }
+        }
+    };
+
+    if (pkg.includes("nodemcu")) {
+        const xs = pins.map(p => p.x);
+        const ys = pins.map(p => p.y);
+        addRect(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    } else if (pkg.includes("axial") || pkg.includes("dip")) {
+        const xs = pins.map(p => p.x);
+        const ys = pins.map(p => p.y);
+        addRect(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    } else if (pkg.includes("to-92") || pkg.includes("led")) {
+        pins.forEach(p => {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const key = `${p.x + dx}:${p.y + dy}`;
+                    if (!pinKeys.has(key)) points.add(key);
+                }
+            }
+        });
+    }
+    return points;
+}
 
 data.nets.forEach(n => {
     if (n.segments) {
@@ -32,7 +71,6 @@ data.nets.forEach(n => {
                 netEdges.add(edgeKey1);
                 netEdges.add(edgeKey2);
                 
-                // Добавляем ВСЕ отверстия существующей сети в netHoles
                 const dx = Math.sign(s.x2 - s.x1);
                 const dy = Math.sign(s.y2 - s.y1);
                 let cx = s.x1, cy = s.y1;
@@ -45,7 +83,6 @@ data.nets.forEach(n => {
                 blockedEdges.add(edgeKey1);
                 blockedEdges.add(edgeKey2);
 
-                // Блокируем все отверстия на пути чужого сегмента
                 const dx = Math.sign(s.x2 - s.x1);
                 const dy = Math.sign(s.y2 - s.y1);
                 let cx = s.x1, cy = s.y1;
@@ -65,6 +102,14 @@ data.nets.forEach(n => {
             }
         });
     }
+});
+
+// Собираем бонусы за проход под корпусами
+data.components.forEach(c => {
+    const underPoints = getUnderBodyPoints(c);
+    underPoints.forEach(pKey => {
+        bonusHoles.set(pKey, 0.6); // Стимул: проход под корпусом дешевле (0.6 вместо 1.0)
+    });
 });
 
 // Блокируем чужие пины и собираем ВСЕ пины для правила Clean Via
@@ -103,10 +148,9 @@ while (queue.length > 0) {
     const newPath = [...curr.path, { x: curr.x, y: curr.y, l: curr.l }];
     const holeKey = `${curr.x}:${curr.y}`;
 
-    // ПУНКТ НАЗНАЧЕНИЯ: либо x2,y2, либо любая точка существующей сети (кроме старта)
     const isGoal = (curr.x === x2 && curr.y === y2) || (netHoles.has(holeKey) && curr.path.length > 0);
 
-    if (isGoal && curr.l === 0) { // Всегда заканчиваем на нижнем слое
+    if (isGoal && curr.l === 0) {
         bestPath = newPath;
         break;
     }
@@ -117,19 +161,24 @@ while (queue.length > 0) {
         const ny = curr.y + dy;
 
         if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
-            const holeKey = `${nx}:${ny}`;
+            const nHoleKey = `${nx}:${ny}`;
             const edgeKey = `${curr.x}:${curr.y}-${nx}:${ny}`;
 
             // 1. ПУТЬ ПО НИЗУ (Layer 0)
             if (curr.l === 0 && !blockedEdges.has(edgeKey)) {
-                if (netHoles.has(holeKey) || !blockedHoles.has(holeKey)) {
-                    const moveCost = netEdges.has(edgeKey) ? 0.1 : 1;
+                if (netHoles.has(nHoleKey) || !blockedHoles.has(nHoleKey)) {
+                    let moveCost = netEdges.has(edgeKey) ? 0.1 : 1;
+                    
+                    // ПРИМЕНЕНИЕ СТИМУЛА: если наступаем в зону под корпусом
+                    if (bonusHoles.has(nHoleKey)) {
+                        moveCost *= bonusHoles.get(nHoleKey);
+                    }
+                    
                     queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + moveCost, path: newPath });
                 }
             }
 
             // 2. ПЕРЕХОД НА ВЕРХ (Layer 1 - Jumper Start)
-            // Условие: текущее отверстие НЕ должно иметь пина (Clean Via)
             if (curr.l === 0 && !allPins.has(`${curr.x}:${curr.y}`)) {
                 const startJumperCost = 50;
                 queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + startJumperCost, path: newPath });
@@ -137,15 +186,12 @@ while (queue.length > 0) {
 
             // 3. ПУТЬ ПО ВЕРХУ (Layer 1 - Jumper Continue)
             if (curr.l === 1) {
-                // Если отверстие занято пином, добавляем огромный штраф (1000), 
-                // что заставит A* искать путь в обход.
-                const isOverPin = allPins.has(holeKey);
+                const isOverPin = allPins.has(nHoleKey);
                 const continueJumperCost = 2 + (isOverPin ? 1000 : 0);
                 queue.push({ x: nx, y: ny, l: 1, cost: curr.cost + continueJumperCost, path: newPath });
 
                 // 4. ПЕРЕХОД НА НИЗ (Layer 1 -> Layer 0 - Jumper End)
-                // Условие: целевое отверстие НЕ должно иметь пина (Clean Via)
-                if (!allPins.has(holeKey)) {
+                if (!allPins.has(nHoleKey)) {
                     const endJumperCost = 1;
                     queue.push({ x: nx, y: ny, l: 0, cost: curr.cost + endJumperCost, path: newPath });
                 }
@@ -172,7 +218,6 @@ for (let i = 1; i < bestPath.length; i++) {
     const p1 = bestPath[i - 1];
     const p2 = bestPath[i];
     if (p2.l === 0) {
-        // Добавляем только если такого сегмента еще нет
         const exists = targetNet.segments.some(s =>
             (s.x1 === p1.x && s.y1 === p1.y && s.x2 === p2.x && s.y2 === p2.y) ||
             (s.x1 === p2.x && s.y1 === p2.y && s.x2 === p1.x && s.y2 === p1.y)

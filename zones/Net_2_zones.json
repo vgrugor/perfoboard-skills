@@ -1,0 +1,66 @@
+{
+  "board": {
+    "width": 30,
+    "height": 20
+  },
+  "zones": [
+    {
+      "id": "zone_0",
+      "type": "anchor",
+      "priority": 1,
+      "capacity": "large",
+      "description": "Центральный якорный компонент (NodeMCU)"
+    },
+    {
+      "id": "zone_1",
+      "type": "left",
+      "priority": 2,
+      "capacity": "medium",
+      "description": "Левый канал"
+    },
+    {
+      "id": "zone_2",
+      "type": "under_component",
+      "priority": 1,
+      "capacity": "small",
+      "description": "Зона под NodeMCU"
+    },
+    {
+      "id": "zone_3",
+      "type": "right",
+      "priority": 2,
+      "capacity": "medium",
+      "description": "Правый канал"
+    },
+    {
+      "id": "zone_4",
+      "type": "power_bus",
+      "priority": 3,
+      "capacity": "medium",
+      "description": "Основная шина питания"
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_controller",
+      "zone": "zone_0",
+      "level": 1,
+      "origin": { "x": 5, "y": 2 },
+      "bbox": { "x1": 5, "y1": 2, "x2": 21, "y2": 17 }
+    },
+    {
+      "id": "seg_channel_1",
+      "zone": "zone_2",
+      "level": 1,
+      "origin": { "x": 7, "y": 3 },
+      "bbox": { "x1": 7, "y1": 3, "x2": 13, "y2": 9 }
+    },
+    {
+      "id": "seg_channel_2",
+      "zone": "zone_2",
+      "level": 2,
+      "origin": { "x": 7, "y": 10 },
+      "bbox": { "x1": 7, "y1": 10, "x2": 13, "y2": 16 }
+    }
+  ]
+}

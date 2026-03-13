@@ -51,13 +51,11 @@ description: "Прокладывает маршруты между пин-эск
 
 Файл скрипта tools/autorouter.js
 
-Запустить подобным образом:
+Запустить напрямую из CLI:
+```bash
+node .gemini/skills/autorouter/tools/autorouter.js nets/Net_1.json placement/Net_1.json routing/Net_1.json tools/rules.json
+```
 
-const netlist = load("netlist.json")
-const placement = load("placement.json")
-const routing = load("routing.json")
-const rules = load("rules.json")
-
+Программный вызов:
+const { autoroute } = require("./tools/autorouter.js")
 const updated = autoroute(netlist, placement, routing, rules)
-
-save("routing.json", updated)

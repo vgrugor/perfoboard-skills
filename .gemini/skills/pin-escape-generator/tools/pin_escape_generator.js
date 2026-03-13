@@ -9,7 +9,9 @@ function generatePinEscapes(netlist, placement, rules) {
 
     for (const net of netlist.nets) {
 
-        for (const node of net.nodes) {
+        const nodes = net.nodes || net.connections.map(c => `${c.component}.${c.pin}`)
+
+        for (const node of nodes) {
 
             const [compId, pinId] = node.split(".")
 
@@ -46,9 +48,11 @@ function generatePinEscapes(netlist, placement, rules) {
             const escapeX = pinX + dx * escapeLength
             const escapeY = pinY + dy * escapeLength
 
+            const netId = net.id || net.name
+
             routes.push({
                 type: "escape",
-                net: net.id,
+                net: netId,
                 from: {
                     component: compId,
                     pin: pinId,
@@ -74,3 +78,29 @@ function generatePinEscapes(netlist, placement, rules) {
     }
 
 }
+
+if (require.main === module) {
+    const fs = require('fs');
+    const path = require('path');
+    const args = process.argv.slice(2);
+
+    if (args.length < 4) {
+        console.error('Usage: node pin_escape_generator.js <netlist_path> <placement_path> <rules_path> <output_path>');
+        process.exit(1);
+    }
+
+    const netlist = JSON.parse(fs.readFileSync(args[0], 'utf8'));
+    const placement = JSON.parse(fs.readFileSync(args[1], 'utf8'));
+    const rules = JSON.parse(fs.readFileSync(args[2], 'utf8'));
+
+    const routing = generatePinEscapes(netlist, placement, rules);
+
+    const outDir = path.dirname(args[3]);
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    fs.writeFileSync(args[3], JSON.stringify(routing, null, 2));
+    console.log(`Successfully generated pin escapes at: ${args[3]}`);
+}
+
+module.exports = { generatePinEscapes };
+

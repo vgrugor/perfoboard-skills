@@ -21,9 +21,14 @@ description: "Размещает целые сегменты, а не компо
 
 Файл скрипта tools/segment_placer.js
 
-Запустить подобным образом:
+Запустить напрямую из CLI:
+```bash
+node .gemini/skills/segment-placement-engine/tools/segment_placer.js placement/Net_1.json
+```
+
+Программный вызов:
+const { placeSegments } = require("./tools/segment_placer.js")
 const placement = placeSegments(board, zones, segments)
-console.log(JSON.stringify(placement, null, 2))
 
 ## Пример результата
 

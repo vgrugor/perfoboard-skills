@@ -22,16 +22,16 @@ description: "Размещает компоненты в сегментах"
 
 ## Использование
 
-Запустить скрипт в tools/component_placer.js
+Файл скрипта tools/component_placer.js
 
-Пример использования
-const netlist = load("netlist.json")
-const placement = load("placement.json")
-const rules = load("rules.json")
+Запустить напрямую из CLI:
+```bash
+node .gemini/skills/component-placement-engine/tools/component_placer.js nets/Net_1.json placement/Net_1.json tools/rules.json
+```
 
+Программный вызов:
+const { placeComponents } = require("./tools/component_placer.js")
 const updated = placeComponents(netlist, placement, rules)
-
-save("placement.json", updated)
 
 ## Пример результата
 

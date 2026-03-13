@@ -13,7 +13,8 @@ function autoroute(netlist, placement, routing, rules) {
 
     for (const net of netlist.nets) {
 
-        const escapes = routing.routes.filter(r => r.net === net.id)
+        const netId = net.id || net.name
+        const escapes = routing.routes.filter(r => r.net === netId)
 
         if (escapes.length < 2) continue
 
@@ -27,7 +28,7 @@ function autoroute(netlist, placement, routing, rules) {
             occupyPath(grid, path)
 
             finalRoutes.push({
-                net: net.id,
+                net: netId,
                 path
             })
 
@@ -40,6 +41,30 @@ function autoroute(netlist, placement, routing, rules) {
     return routing
 
 }
+
+if (require.main === module) {
+    const fs = require('fs');
+    const path = require('path');
+    const args = process.argv.slice(2);
+
+    if (args.length < 4) {
+        console.error('Usage: node autorouter.js <netlist_path> <placement_path> <routing_path> <rules_path>');
+        process.exit(1);
+    }
+
+    const netlist = JSON.parse(fs.readFileSync(args[0], 'utf8'));
+    const placement = JSON.parse(fs.readFileSync(args[1], 'utf8'));
+    const routing = JSON.parse(fs.readFileSync(args[2], 'utf8'));
+    const rules = JSON.parse(fs.readFileSync(args[3], 'utf8'));
+
+    const updated = autoroute(netlist, placement, routing, rules);
+
+    fs.writeFileSync(args[2], JSON.stringify(updated, null, 2));
+    console.log(`Successfully completed autorouting at: ${args[2]}`);
+}
+
+module.exports = { autoroute };
+
 
 //Создание grid
 function createGrid(w, h) {

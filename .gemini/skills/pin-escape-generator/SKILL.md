@@ -42,13 +42,16 @@ Pin positions — относительно центра корпуса.
 
 ## Использование
 
-const netlist = load("netlist.json")
-const placement = load("placement.json")
-const rules = load("rules.json")
+Файл скрипта tools/pin_escape_generator.js
 
+Запустить напрямую из CLI:
+```bash
+node .gemini/skills/pin-escape-generator/tools/pin_escape_generator.js nets/Net_1.json placement/Net_1.json tools/rules.json routing/Net_1.json
+```
+
+Программный вызов:
+const { generatePinEscapes } = require("./tools/pin_escape_generator.js")
 const routing = generatePinEscapes(netlist, placement, rules)
-
-save("routing.json", routing)
 
 ## Пример результата routing.json
 

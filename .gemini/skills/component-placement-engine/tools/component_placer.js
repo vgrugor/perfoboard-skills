@@ -23,7 +23,9 @@ function placeComponents(netlist, placement, rules) {
 
         for (const net of netlist.nets) {
 
-            const comps = net.nodes
+            const nodes = net.nodes || net.connections.map(c => `${c.component}.${c.pin}`)
+
+            const comps = nodes
                 .map(n => n.split(".")[0])
                 .filter(c => graph[c])
 
@@ -101,3 +103,26 @@ function placeComponents(netlist, placement, rules) {
     return placement
 
 }
+
+if (require.main === module) {
+    const fs = require('fs');
+    const path = require('path');
+    const args = process.argv.slice(2);
+
+    if (args.length < 3) {
+        console.error('Usage: node component_placer.js <netlist_path> <placement_path> <rules_path>');
+        process.exit(1);
+    }
+
+    const netlist = JSON.parse(fs.readFileSync(args[0], 'utf8'));
+    const placement = JSON.parse(fs.readFileSync(args[1], 'utf8'));
+    const rules = JSON.parse(fs.readFileSync(args[2], 'utf8'));
+
+    const updated = placeComponents(netlist, placement, rules);
+
+    fs.writeFileSync(args[1], JSON.stringify(updated, null, 2));
+    console.log(`Successfully updated component placement at: ${args[1]}`);
+}
+
+module.exports = { placeComponents };
+

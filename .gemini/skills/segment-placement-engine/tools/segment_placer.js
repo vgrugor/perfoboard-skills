@@ -27,18 +27,18 @@ function placeSegments(board, zones, segments) {
 
     const result = []
 
-    // --- 2. сортируем сегменты по zone_level
+    // --- 2. сортируем сегменты по level
 
-    segments.sort((a, b) => a.zone_level - b.zone_level)
+    segments.sort((a, b) => a.level - b.level)
 
     // --- 3. размещаем сегменты
 
     for (const seg of segments) {
 
-        const zone = zoneMap[seg.zone_assignment]
+        const zone = zoneMap[seg.zone]
 
         if (!zone) {
-            throw new Error(`Zone not found: ${seg.zone_assignment}`)
+            throw new Error(`Zone not found: ${seg.zone}`)
         }
 
         // --- оценка размера сегмента
@@ -63,7 +63,7 @@ function placeSegments(board, zones, segments) {
         if (zone.cursorY + height > zone.y2) {
 
             throw new Error(
-                `Zone overflow: ${seg.id} does not fit in ${seg.zone_assignment}`
+                `Zone overflow: ${seg.id} does not fit in ${seg.zone}`
             )
 
         }
@@ -77,7 +77,7 @@ function placeSegments(board, zones, segments) {
 
         result.push({
             id: seg.id,
-            zone: seg.zone_assignment,
+            zone: seg.zone,
             origin: {
                 x: zone.cursorX,
                 y: zone.cursorY
@@ -93,3 +93,28 @@ function placeSegments(board, zones, segments) {
     return result
 
 }
+
+if (require.main === module) {
+    const fs = require('fs');
+    const path = require('path');
+    const args = process.argv.slice(2);
+
+    if (args.length < 1) {
+        console.error('Usage: node segment_placer.js <placement_json_path>');
+        process.exit(1);
+    }
+
+    const filePath = path.resolve(args[0]);
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+    const placement = placeSegments(data.board, data.zones, data.segments);
+    
+    // Обновляем сегменты в исходных данных
+    data.segments = placement;
+
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    console.log(`Successfully updated placement at: ${filePath}`);
+}
+
+module.exports = { placeSegments };
+

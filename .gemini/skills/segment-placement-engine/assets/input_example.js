@@ -11,8 +11,8 @@ const zones = [
 
 const segments = [
   {
-    id: "power_input",
-    zone: "zone_1",
+    id: "node_MCU",
+    zone: "zone_2",
     level: 0,
   },
   {
@@ -22,7 +22,7 @@ const segments = [
   },
   {
     id: "logic",
-    zone: "zone_3",
+    zone: "zone_2",
     level: 2,
   }
 ]

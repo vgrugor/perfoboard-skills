@@ -98,7 +98,11 @@ function placeComponents(netlist, placement, rules) {
 
     }
 
-    placement.components = result
+    const existingIds = new Set(result.map(c => c.id))
+    placement.components = [
+        ...(placement.components || []).filter(c => !existingIds.has(c.id)),
+        ...result
+    ]
 
     return placement
 
